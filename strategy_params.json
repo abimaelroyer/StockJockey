@@ -1,0 +1,19 @@
+{
+  "trading_mode": "MOMENTUM_RSI",
+  "rsi_oversold_threshold": 50.0,
+  "rsi_overbought_threshold": 65.0,
+  "time_interval": "5minute",
+  "universe": [
+    "TSLA",
+    "NVDA",
+    "AAPL",
+    "MSFT",
+    "SPY",
+    "QQQ",
+    "AMD",
+    "AMZN",
+    "META",
+    "GOOGL"
+  ],
+  "refresh_universe": false
+}
