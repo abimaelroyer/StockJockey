@@ -1,0 +1,4 @@
+.env
+robinhood.pickle
+__pycache__/
+*.pyc
