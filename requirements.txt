@@ -1,0 +1,6 @@
+robin_stocks
+pyotp
+PyYAML
+pytz
+flask
+gunicorn

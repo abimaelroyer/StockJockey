@@ -20,6 +20,7 @@ STRATEGY_YAML_PATH = os.path.join(STATE_DIR, "strategy.yaml")
 LEDGER_PATH = os.path.join(SCRIPT_DIR, "trade_ledger.csv")
 ALERT_HISTORY_PATH = os.path.join(STATE_DIR, "alert_history.json")
 PARAMS_PATH = os.path.join(SCRIPT_DIR, "strategy_params.json")
+HEARTBEAT_PATH = os.path.join(STATE_DIR, "heartbeat.json")
 
 # Minutes to wait before re-entering a symbol after it was closed, so a
 # stop-loss exit isn't immediately undone by the RSI scan in the same cycle.
@@ -512,6 +513,22 @@ def flatten_all_positions(interval):
         except Exception as e:
             print(f"  Failed to flatten {symbol}: {e}", file=sys.stderr)
 
+def write_heartbeat(status="ok", detail=None):
+    """Record that a scan cycle completed. /health reads this to tell
+    a live bot apart from one whose Robinhood session has died."""
+    os.makedirs(STATE_DIR, exist_ok=True)
+    payload = {
+        "status": status,
+        "time": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+    }
+    if detail:
+        payload["detail"] = detail
+    try:
+        with open(HEARTBEAT_PATH, "w") as f:
+            json.dump(payload, f, indent=2)
+    except Exception as e:
+        print(f"Failed to write heartbeat: {e}", file=sys.stderr)
+
 def run_strategy():
     print("Starting always-on execution loop...")
     while True:
@@ -582,14 +599,15 @@ def run_strategy():
                         raise e
                     print(f"Error skipping iteration sequence for {symbol}: {e}")
             
-            # Trigger Hermes update / heartbeat and strategy optimization
-            
-            
-            print("Completed scanning tickers. Waiting 5 minutes (300 seconds)...")
+            write_heartbeat("ok")
+
+            print("Completed scanning tickers. Waiting 5 minutes (300 seconds)...")            
+
             time.sleep(300)
             
         except (RuntimeError, Exception) as e:
             print(f"\n[ERROR] Authentication or data fetch handshake failed: {e}", file=sys.stderr)
+            write_heartbeat("error", str(e))
             try:
                 robinhood._ensure_login._logged_in = False
             except Exception:
