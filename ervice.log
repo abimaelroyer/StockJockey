@@ -1,0 +1,11 @@
+[0;1;32m●[0m stockjockey.service - StockJockey Trading Bot
+     Loaded: loaded (]8;;file://stockjockey/etc/systemd/system/stockjockey.service/etc/systemd/system/stockjockey.service]8;;; [0;1;32menabled[0m; preset: [0;1;32menabled[0m)
+     Active: [0;1;32mactive (running)[0m since Mon 2026-09-21 12:48:20 UTC; 10s ago
+   Main PID: 30741 (python)
+      Tasks: 2 (limit: 1108)
+     Memory: 28.3M (peak: 28.5M)
+        CPU: 535ms
+     CGroup: /system.slice/stockjockey.service
+             └─[0;38;5;245m30741 /opt/stockjockey/venv/bin/python /opt/stockjockey/run_both.py[0m
+
+Sep 21 12:48:20 stockjockey systemd[1]: Started stockjockey.service - StockJockey Trading Bot.

@@ -1,0 +1,208 @@
+ * Serving Flask app 'api'
+ * Debug mode: off
+[31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5000
+ * Running on http://159.223.160.191:5000
+[33mPress CTRL+C to quit[0m
+67.80.27.129 - - [21/Sep/2026 13:52:59] "GET /health HTTP/1.1" 200 -
+152.32.172.234 - - [21/Sep/2026 14:15:33] code 400, message Bad request syntax ('ÿ\x00\x00\x00\x00\x00\x00\x00\x00\x7f\x03\x01NULL\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00')
+152.32.172.234 - - [21/Sep/2026 14:15:33] "[31m[1mÿ\x00\x00\x00\x00\x00\x00\x00\x00\x7f\x03\x01NULL\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00[0m" 400 -
+152.32.172.234 - - [21/Sep/2026 14:15:49] code 400, message Bad request syntax ('ÿ\x00\x00\x00\x00\x00\x00\x00\x00\x7f\x03\x01NULL\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00')
+152.32.172.234 - - [21/Sep/2026 14:15:49] "[31m[1mÿ\x00\x00\x00\x00\x00\x00\x00\x00\x7f\x03\x01NULL\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00[0m" 400 -
+152.32.172.234 - - [21/Sep/2026 14:16:07] code 400, message Bad request syntax ('ÿ\x00\x00\x00\x00\x00\x00\x00\x00\x7f\x03\x01NULL\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00')
+152.32.172.234 - - [21/Sep/2026 14:16:07] "[31m[1mÿ\x00\x00\x00\x00\x00\x00\x00\x00\x7f\x03\x01NULL\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00[0m" 400 -
+152.32.172.234 - - [21/Sep/2026 14:16:16] "[31m[1mGET / HTTP/1.1[0m" 401 -
+152.32.172.234 - - [21/Sep/2026 14:16:16] "[31m[1mGET / HTTP/1.1[0m" 401 -
+152.32.172.234 - - [21/Sep/2026 14:16:17] "[31m[1mGET /favicon.ico HTTP/1.1[0m" 401 -
+67.80.27.129 - - [21/Sep/2026 14:16:35] "[31m[1mGET /balance HTTP/1.1[0m" 401 -
+67.80.27.129 - - [21/Sep/2026 14:16:35] "[31m[1mGET /trades HTTP/1.1[0m" 401 -
+ * Serving Flask app 'api'
+ * Debug mode: off
+[31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5000
+ * Running on http://159.223.160.191:5000
+[33mPress CTRL+C to quit[0m
+67.80.27.129 - - [21/Sep/2026 14:18:44] "[31m[1mGET /balance HTTP/1.1[0m" 401 -
+67.80.27.129 - - [21/Sep/2026 14:21:12] "[31m[1mGET /balance HTTP/1.1[0m" 401 -
+ * Serving Flask app 'api'
+ * Debug mode: off
+[31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5000
+ * Running on http://159.223.160.191:5000
+[33mPress CTRL+C to quit[0m
+67.80.27.129 - - [21/Sep/2026 14:24:13] "[31m[1mGET /balance HTTP/1.1[0m" 401 -
+ * Serving Flask app 'api'
+ * Debug mode: off
+[31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5000
+ * Running on http://159.223.160.191:5000
+[33mPress CTRL+C to quit[0m
+67.80.27.129 - - [21/Sep/2026 14:27:41] "GET /balance HTTP/1.1" 200 -
+67.80.27.129 - - [21/Sep/2026 14:28:26] "GET /positions HTTP/1.1" 200 -
+67.80.27.129 - - [21/Sep/2026 14:28:32] "GET /trades HTTP/1.1" 200 -
+67.80.27.129 - - [21/Sep/2026 14:31:34] "GET /balance HTTP/1.1" 200 -
+67.80.27.129 - - [21/Sep/2026 14:31:34] "GET /positions HTTP/1.1" 200 -
+67.80.27.129 - - [21/Sep/2026 14:31:34] "GET /trades HTTP/1.1" 200 -
+67.80.27.129 - - [21/Sep/2026 14:36:34] "GET /balance HTTP/1.1" 200 -
+67.80.27.129 - - [21/Sep/2026 14:36:34] "GET /positions HTTP/1.1" 200 -
+67.80.27.129 - - [21/Sep/2026 14:36:34] "GET /trades HTTP/1.1" 200 -
+67.80.27.129 - - [21/Sep/2026 14:47:34] "[31m[1mOPTIONS /positions HTTP/1.1[0m" 401 -
+67.80.27.129 - - [21/Sep/2026 14:47:34] "[31m[1mOPTIONS /balance HTTP/1.1[0m" 401 -
+67.80.27.129 - - [21/Sep/2026 14:47:34] "OPTIONS /health HTTP/1.1" 200 -
+67.80.27.129 - - [21/Sep/2026 14:47:34] "[31m[1mOPTIONS /positions HTTP/1.1[0m" 401 -
+67.80.27.129 - - [21/Sep/2026 14:47:34] "[31m[1mOPTIONS /balance HTTP/1.1[0m" 401 -
+67.80.27.129 - - [21/Sep/2026 14:47:34] "[31m[1mOPTIONS /trades HTTP/1.1[0m" 401 -
+67.80.27.129 - - [21/Sep/2026 14:47:34] "[31m[1mOPTIONS /trades HTTP/1.1[0m" 401 -
+67.80.27.129 - - [21/Sep/2026 14:47:34] "OPTIONS /health HTTP/1.1" 200 -
+67.80.27.129 - - [21/Sep/2026 14:47:35] "[31m[1mOPTIONS /trades HTTP/1.1[0m" 401 -
+67.80.27.129 - - [21/Sep/2026 14:47:35] "[31m[1mOPTIONS /balance HTTP/1.1[0m" 401 -
+67.80.27.129 - - [21/Sep/2026 14:47:35] "[31m[1mOPTIONS /positions HTTP/1.1[0m" 401 -
+67.80.27.129 - - [21/Sep/2026 14:47:35] "[31m[1mOPTIONS /positions HTTP/1.1[0m" 401 -
+67.80.27.129 - - [21/Sep/2026 14:47:35] "OPTIONS /health HTTP/1.1" 200 -
+67.80.27.129 - - [21/Sep/2026 14:47:35] "[31m[1mOPTIONS /balance HTTP/1.1[0m" 401 -
+67.80.27.129 - - [21/Sep/2026 14:47:35] "[31m[1mOPTIONS /trades HTTP/1.1[0m" 401 -
+67.80.27.129 - - [21/Sep/2026 14:47:35] "OPTIONS /health HTTP/1.1" 200 -
+67.80.27.129 - - [21/Sep/2026 14:48:05] "[31m[1mOPTIONS /trades HTTP/1.1[0m" 401 -
+67.80.27.129 - - [21/Sep/2026 14:48:05] "[31m[1mOPTIONS /balance HTTP/1.1[0m" 401 -
+67.80.27.129 - - [21/Sep/2026 14:48:05] "[31m[1mOPTIONS /positions HTTP/1.1[0m" 401 -
+67.80.27.129 - - [21/Sep/2026 14:48:05] "OPTIONS /health HTTP/1.1" 200 -
+67.80.27.129 - - [21/Sep/2026 14:48:35] "[31m[1mOPTIONS /trades HTTP/1.1[0m" 401 -
+67.80.27.129 - - [21/Sep/2026 14:48:35] "[31m[1mOPTIONS /balance HTTP/1.1[0m" 401 -
+67.80.27.129 - - [21/Sep/2026 14:48:35] "OPTIONS /health HTTP/1.1" 200 -
+67.80.27.129 - - [21/Sep/2026 14:48:35] "[31m[1mOPTIONS /positions HTTP/1.1[0m" 401 -
+67.80.27.129 - - [21/Sep/2026 14:49:05] "[31m[1mOPTIONS /balance HTTP/1.1[0m" 401 -
+67.80.27.129 - - [21/Sep/2026 14:49:05] "[31m[1mOPTIONS /positions HTTP/1.1[0m" 401 -
+67.80.27.129 - - [21/Sep/2026 14:49:05] "[31m[1mOPTIONS /trades HTTP/1.1[0m" 401 -
+67.80.27.129 - - [21/Sep/2026 14:49:05] "OPTIONS /health HTTP/1.1" 200 -
+67.80.27.129 - - [21/Sep/2026 14:49:16] "[31m[1mOPTIONS /positions HTTP/1.1[0m" 401 -
+67.80.27.129 - - [21/Sep/2026 14:49:16] "[31m[1mOPTIONS /trades HTTP/1.1[0m" 401 -
+67.80.27.129 - - [21/Sep/2026 14:49:16] "OPTIONS /health HTTP/1.1" 200 -
+67.80.27.129 - - [21/Sep/2026 14:49:16] "[31m[1mOPTIONS /balance HTTP/1.1[0m" 401 -
+67.80.27.129 - - [21/Sep/2026 14:49:16] "[31m[1mOPTIONS /balance HTTP/1.1[0m" 401 -
+67.80.27.129 - - [21/Sep/2026 14:49:16] "[31m[1mOPTIONS /positions HTTP/1.1[0m" 401 -
+67.80.27.129 - - [21/Sep/2026 14:49:16] "[31m[1mOPTIONS /trades HTTP/1.1[0m" 401 -
+67.80.27.129 - - [21/Sep/2026 14:49:16] "OPTIONS /health HTTP/1.1" 200 -
+67.80.27.129 - - [21/Sep/2026 14:49:17] "[31m[1mOPTIONS /balance HTTP/1.1[0m" 401 -
+67.80.27.129 - - [21/Sep/2026 14:49:17] "[31m[1mOPTIONS /trades HTTP/1.1[0m" 401 -
+67.80.27.129 - - [21/Sep/2026 14:49:17] "OPTIONS /health HTTP/1.1" 200 -
+67.80.27.129 - - [21/Sep/2026 14:49:17] "[31m[1mOPTIONS /positions HTTP/1.1[0m" 401 -
+67.80.27.129 - - [21/Sep/2026 14:49:17] "[31m[1mOPTIONS /balance HTTP/1.1[0m" 401 -
+67.80.27.129 - - [21/Sep/2026 14:49:17] "[31m[1mOPTIONS /positions HTTP/1.1[0m" 401 -
+67.80.27.129 - - [21/Sep/2026 14:49:17] "[31m[1mOPTIONS /trades HTTP/1.1[0m" 401 -
+67.80.27.129 - - [21/Sep/2026 14:49:17] "OPTIONS /health HTTP/1.1" 200 -
+67.80.27.129 - - [21/Sep/2026 14:49:18] "[31m[1mOPTIONS /positions HTTP/1.1[0m" 401 -
+67.80.27.129 - - [21/Sep/2026 14:49:18] "OPTIONS /health HTTP/1.1" 200 -
+67.80.27.129 - - [21/Sep/2026 14:49:18] "[31m[1mOPTIONS /positions HTTP/1.1[0m" 401 -
+67.80.27.129 - - [21/Sep/2026 14:49:18] "[31m[1mOPTIONS /balance HTTP/1.1[0m" 401 -
+67.80.27.129 - - [21/Sep/2026 14:49:18] "[31m[1mOPTIONS /trades HTTP/1.1[0m" 401 -
+67.80.27.129 - - [21/Sep/2026 14:49:18] "[31m[1mOPTIONS /balance HTTP/1.1[0m" 401 -
+67.80.27.129 - - [21/Sep/2026 14:49:18] "[31m[1mOPTIONS /trades HTTP/1.1[0m" 401 -
+67.80.27.129 - - [21/Sep/2026 14:49:18] "OPTIONS /health HTTP/1.1" 200 -
+67.80.27.129 - - [21/Sep/2026 14:49:19] "[31m[1mOPTIONS /balance HTTP/1.1[0m" 401 -
+67.80.27.129 - - [21/Sep/2026 14:49:19] "OPTIONS /health HTTP/1.1" 200 -
+67.80.27.129 - - [21/Sep/2026 14:49:19] "[31m[1mOPTIONS /positions HTTP/1.1[0m" 401 -
+67.80.27.129 - - [21/Sep/2026 14:49:19] "[31m[1mOPTIONS /trades HTTP/1.1[0m" 401 -
+67.80.27.129 - - [21/Sep/2026 14:49:19] "[31m[1mOPTIONS /positions HTTP/1.1[0m" 401 -
+67.80.27.129 - - [21/Sep/2026 14:49:19] "[31m[1mOPTIONS /balance HTTP/1.1[0m" 401 -
+67.80.27.129 - - [21/Sep/2026 14:49:19] "[31m[1mOPTIONS /trades HTTP/1.1[0m" 401 -
+67.80.27.129 - - [21/Sep/2026 14:49:19] "OPTIONS /health HTTP/1.1" 200 -
+67.80.27.129 - - [21/Sep/2026 14:49:49] "[31m[1mOPTIONS /balance HTTP/1.1[0m" 401 -
+67.80.27.129 - - [21/Sep/2026 14:49:49] "[31m[1mOPTIONS /positions HTTP/1.1[0m" 401 -
+67.80.27.129 - - [21/Sep/2026 14:49:49] "[31m[1mOPTIONS /trades HTTP/1.1[0m" 401 -
+67.80.27.129 - - [21/Sep/2026 14:49:49] "OPTIONS /health HTTP/1.1" 200 -
+67.80.27.129 - - [21/Sep/2026 14:50:19] "[31m[1mOPTIONS /trades HTTP/1.1[0m" 401 -
+67.80.27.129 - - [21/Sep/2026 14:50:19] "[31m[1mOPTIONS /balance HTTP/1.1[0m" 401 -
+67.80.27.129 - - [21/Sep/2026 14:50:19] "[31m[1mOPTIONS /positions HTTP/1.1[0m" 401 -
+67.80.27.129 - - [21/Sep/2026 14:50:19] "OPTIONS /health HTTP/1.1" 200 -
+67.80.27.129 - - [21/Sep/2026 14:50:49] "[31m[1mOPTIONS /balance HTTP/1.1[0m" 401 -
+67.80.27.129 - - [21/Sep/2026 14:50:49] "[31m[1mOPTIONS /positions HTTP/1.1[0m" 401 -
+67.80.27.129 - - [21/Sep/2026 14:50:49] "OPTIONS /health HTTP/1.1" 200 -
+67.80.27.129 - - [21/Sep/2026 14:50:49] "[31m[1mOPTIONS /trades HTTP/1.1[0m" 401 -
+67.80.27.129 - - [21/Sep/2026 14:51:19] "[31m[1mOPTIONS /trades HTTP/1.1[0m" 401 -
+67.80.27.129 - - [21/Sep/2026 14:51:19] "[31m[1mOPTIONS /balance HTTP/1.1[0m" 401 -
+67.80.27.129 - - [21/Sep/2026 14:51:19] "OPTIONS /health HTTP/1.1" 200 -
+67.80.27.129 - - [21/Sep/2026 14:51:19] "[31m[1mOPTIONS /positions HTTP/1.1[0m" 401 -
+67.80.27.129 - - [21/Sep/2026 14:51:49] "[31m[1mOPTIONS /balance HTTP/1.1[0m" 401 -
+67.80.27.129 - - [21/Sep/2026 14:51:49] "[31m[1mOPTIONS /positions HTTP/1.1[0m" 401 -
+67.80.27.129 - - [21/Sep/2026 14:51:49] "OPTIONS /health HTTP/1.1" 200 -
+67.80.27.129 - - [21/Sep/2026 14:51:49] "[31m[1mOPTIONS /trades HTTP/1.1[0m" 401 -
+67.80.27.129 - - [21/Sep/2026 14:52:19] "[31m[1mOPTIONS /balance HTTP/1.1[0m" 401 -
+67.80.27.129 - - [21/Sep/2026 14:52:19] "[31m[1mOPTIONS /trades HTTP/1.1[0m" 401 -
+67.80.27.129 - - [21/Sep/2026 14:52:19] "OPTIONS /health HTTP/1.1" 200 -
+67.80.27.129 - - [21/Sep/2026 14:52:19] "[31m[1mOPTIONS /positions HTTP/1.1[0m" 401 -
+67.80.27.129 - - [21/Sep/2026 14:52:49] "[31m[1mOPTIONS /balance HTTP/1.1[0m" 401 -
+67.80.27.129 - - [21/Sep/2026 14:52:49] "[31m[1mOPTIONS /positions HTTP/1.1[0m" 401 -
+67.80.27.129 - - [21/Sep/2026 14:52:49] "[31m[1mOPTIONS /trades HTTP/1.1[0m" 401 -
+67.80.27.129 - - [21/Sep/2026 14:52:49] "OPTIONS /health HTTP/1.1" 200 -
+67.80.27.129 - - [21/Sep/2026 14:53:19] "[31m[1mOPTIONS /trades HTTP/1.1[0m" 401 -
+67.80.27.129 - - [21/Sep/2026 14:53:19] "OPTIONS /health HTTP/1.1" 200 -
+67.80.27.129 - - [21/Sep/2026 14:53:19] "[31m[1mOPTIONS /positions HTTP/1.1[0m" 401 -
+67.80.27.129 - - [21/Sep/2026 14:53:19] "[31m[1mOPTIONS /balance HTTP/1.1[0m" 401 -
+ * Serving Flask app 'api'
+ * Debug mode: off
+[31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5000
+ * Running on http://159.223.160.191:5000
+[33mPress CTRL+C to quit[0m
+67.80.27.129 - - [21/Sep/2026 14:53:29] "[31m[1mOPTIONS /balance HTTP/1.1[0m" 401 -
+67.80.27.129 - - [21/Sep/2026 14:53:29] "[31m[1mOPTIONS /positions HTTP/1.1[0m" 401 -
+67.80.27.129 - - [21/Sep/2026 14:53:29] "[31m[1mOPTIONS /trades HTTP/1.1[0m" 401 -
+67.80.27.129 - - [21/Sep/2026 14:53:29] "OPTIONS /health HTTP/1.1" 200 -
+67.80.27.129 - - [21/Sep/2026 14:53:29] "[31m[1mOPTIONS /balance HTTP/1.1[0m" 401 -
+67.80.27.129 - - [21/Sep/2026 14:53:29] "[31m[1mOPTIONS /positions HTTP/1.1[0m" 401 -
+67.80.27.129 - - [21/Sep/2026 14:53:29] "OPTIONS /health HTTP/1.1" 200 -
+67.80.27.129 - - [21/Sep/2026 14:53:29] "[31m[1mOPTIONS /trades HTTP/1.1[0m" 401 -
+67.80.27.129 - - [21/Sep/2026 14:53:59] "[31m[1mOPTIONS /positions HTTP/1.1[0m" 401 -
+67.80.27.129 - - [21/Sep/2026 14:53:59] "[31m[1mOPTIONS /balance HTTP/1.1[0m" 401 -
+67.80.27.129 - - [21/Sep/2026 14:53:59] "[31m[1mOPTIONS /trades HTTP/1.1[0m" 401 -
+67.80.27.129 - - [21/Sep/2026 14:53:59] "OPTIONS /health HTTP/1.1" 200 -
+ * Serving Flask app 'api'
+ * Debug mode: off
+[31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5000
+ * Running on http://159.223.160.191:5000
+[33mPress CTRL+C to quit[0m
+67.80.27.129 - - [21/Sep/2026 14:54:25] "[31m[1mOPTIONS /balance HTTP/1.1[0m" 401 -
+67.80.27.129 - - [21/Sep/2026 14:54:25] "[31m[1mOPTIONS /trades HTTP/1.1[0m" 401 -
+67.80.27.129 - - [21/Sep/2026 14:54:25] "[31m[1mOPTIONS /positions HTTP/1.1[0m" 401 -
+67.80.27.129 - - [21/Sep/2026 14:54:25] "[31m[1mOPTIONS /positions HTTP/1.1[0m" 401 -
+67.80.27.129 - - [21/Sep/2026 14:54:25] "OPTIONS /health HTTP/1.1" 200 -
+67.80.27.129 - - [21/Sep/2026 14:54:25] "[31m[1mOPTIONS /balance HTTP/1.1[0m" 401 -
+67.80.27.129 - - [21/Sep/2026 14:54:25] "[31m[1mOPTIONS /trades HTTP/1.1[0m" 401 -
+67.80.27.129 - - [21/Sep/2026 14:54:25] "OPTIONS /health HTTP/1.1" 200 -
+67.80.27.129 - - [21/Sep/2026 14:54:55] "[31m[1mOPTIONS /balance HTTP/1.1[0m" 401 -
+67.80.27.129 - - [21/Sep/2026 14:54:55] "[31m[1mOPTIONS /trades HTTP/1.1[0m" 401 -
+67.80.27.129 - - [21/Sep/2026 14:54:55] "OPTIONS /health HTTP/1.1" 200 -
+67.80.27.129 - - [21/Sep/2026 14:54:55] "[31m[1mOPTIONS /positions HTTP/1.1[0m" 401 -
+67.80.27.129 - - [21/Sep/2026 14:55:25] "[31m[1mOPTIONS /positions HTTP/1.1[0m" 401 -
+67.80.27.129 - - [21/Sep/2026 14:55:25] "[31m[1mOPTIONS /balance HTTP/1.1[0m" 401 -
+67.80.27.129 - - [21/Sep/2026 14:55:25] "OPTIONS /health HTTP/1.1" 200 -
+67.80.27.129 - - [21/Sep/2026 14:55:25] "[31m[1mOPTIONS /trades HTTP/1.1[0m" 401 -
+ * Serving Flask app 'api'
+ * Debug mode: off
+[31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5000
+ * Running on http://159.223.160.191:5000
+[33mPress CTRL+C to quit[0m
+67.80.27.129 - - [21/Sep/2026 14:55:55] "OPTIONS /health HTTP/1.1" 200 -
+67.80.27.129 - - [21/Sep/2026 14:55:55] "[31m[1mOPTIONS /positions HTTP/1.1[0m" 401 -
+67.80.27.129 - - [21/Sep/2026 14:55:55] "[31m[1mOPTIONS /balance HTTP/1.1[0m" 401 -
+67.80.27.129 - - [21/Sep/2026 14:55:55] "[31m[1mOPTIONS /trades HTTP/1.1[0m" 401 -
+67.80.27.129 - - [21/Sep/2026 14:55:55] "GET /health HTTP/1.1" 200 -
+67.80.27.129 - - [21/Sep/2026 14:56:25] "[31m[1mOPTIONS /balance HTTP/1.1[0m" 401 -
+67.80.27.129 - - [21/Sep/2026 14:56:25] "[31m[1mOPTIONS /positions HTTP/1.1[0m" 401 -
+67.80.27.129 - - [21/Sep/2026 14:56:25] "[31m[1mOPTIONS /trades HTTP/1.1[0m" 401 -
+67.80.27.129 - - [21/Sep/2026 14:56:25] "OPTIONS /health HTTP/1.1" 200 -
+67.80.27.129 - - [21/Sep/2026 14:56:25] "GET /health HTTP/1.1" 200 -
+67.80.27.129 - - [21/Sep/2026 14:56:55] "[31m[1mOPTIONS /balance HTTP/1.1[0m" 401 -
+67.80.27.129 - - [21/Sep/2026 14:56:55] "[31m[1mOPTIONS /positions HTTP/1.1[0m" 401 -
+67.80.27.129 - - [21/Sep/2026 14:56:55] "[31m[1mOPTIONS /trades HTTP/1.1[0m" 401 -
+67.80.27.129 - - [21/Sep/2026 14:56:55] "OPTIONS /health HTTP/1.1" 200 -
+67.80.27.129 - - [21/Sep/2026 14:56:55] "GET /health HTTP/1.1" 200 -

@@ -3,4 +3,4 @@ pyotp
 PyYAML
 pytz
 flask
-gunicorn
+gunicornflask-cors

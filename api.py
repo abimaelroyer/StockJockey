@@ -1,9 +1,12 @@
 import os
+from dotenv import load_dotenv
+load_dotenv()
 import json
 import csv
 from flask import Flask, jsonify, request
 import datetime
 from datetime import datetime, timezone
+from flask_cors import CORS
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 STATE_DIR = os.path.join(SCRIPT_DIR, "state")
@@ -11,6 +14,7 @@ LEDGER_PATH = os.path.join(SCRIPT_DIR, "trade_ledger.csv")
 PARAMS_PATH = os.path.join(SCRIPT_DIR, "strategy_params.json")
 
 app = Flask(__name__)
+CORS(app)
 API_KEY = os.environ.get("PANEL_API_KEY")
 
 
