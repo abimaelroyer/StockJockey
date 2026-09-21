@@ -10,4 +10,4 @@ login_result = robinhood._ensure_login()
 print(f"Startup login: {login_result}")
 
 threading.Thread(target=run_strategy, daemon=True).start()
-app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
+app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)), use_reloader=False)
