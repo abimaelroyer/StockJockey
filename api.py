@@ -20,11 +20,12 @@ API_KEY = os.environ.get("PANEL_API_KEY")
 
 @app.before_request
 def check_auth():
+    if request.method == "OPTIONS":
+        return
     if request.path == "/health":
         return
     if not API_KEY or request.headers.get("X-API-Key") != API_KEY:
         return jsonify({"error": "unauthorized"}), 401
-
 
 @app.route("/health")
 def health():
