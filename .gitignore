@@ -2,3 +2,4 @@
 robinhood.pickle
 __pycache__/
 *.pyc
+state/heartbeat.json

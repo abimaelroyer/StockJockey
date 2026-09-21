@@ -32,6 +32,8 @@ PAPER_MODE = True  # Set to False to enable live trading
 VERBOSE = False
 MARKET_TZ = ZoneInfo("America/New_York")
 NO_NEW_ENTRIES_AFTER = datetime.time(15, 45)  # stop buying at 3:45 PM ET
+MARKET_OPEN = datetime.time(9, 30)
+MARKET_CLOSE = datetime.time(16, 0)
 FLATTEN_AT = datetime.time(15, 55)            # close everything at 3:55 PM ET
 FLATTEN_ENABLED = True
 
@@ -483,6 +485,12 @@ def past_entry_cutoff():
         return True
     return now.time() >= NO_NEW_ENTRIES_AFTER
 
+def market_is_open():
+    now = market_now()
+    if now.weekday() > 4:  # Saturday=5, Sunday=6
+        return False
+    return MARKET_OPEN <= now.time() < MARKET_CLOSE
+
 
 def is_flatten_window():
     now = market_now()
@@ -554,6 +562,18 @@ def run_strategy():
                 flatten_all_positions(interval)
                 print("Market closing. Sleeping 5 minutes...")
                 time.sleep(300)
+                continue
+
+            if FLATTEN_ENABLED and is_flatten_window():
+                flatten_all_positions(interval)
+                print("Market closing. Sleeping 5 minutes...")
+                time.sleep(300)
+                continue
+
+            if not market_is_open():
+                print(f"Market closed ({market_now().strftime('%I:%M %p %Z')}). Idling...")
+                write_heartbeat("ok")
+                time.sleep(900)
                 continue
 
             # Exit discipline first: protect open positions before looking for
