@@ -5,3 +5,4 @@ __pycache__/
 state/heartbeat.json
 archive/*.bak.csv
 state/status.json
+*.log
