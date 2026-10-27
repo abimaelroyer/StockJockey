@@ -1,6 +1,9 @@
 robin_stocks
 pyotp
-PyYAML
 pytz
 flask
 gunicorn
+python-dotenv
+flask-cors
+yfinance
+pandas

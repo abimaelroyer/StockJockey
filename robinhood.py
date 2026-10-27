@@ -3,6 +3,7 @@
 Reads credentials from the following environment variables:
   - ROBINHOOD_USER
   - ROBINHOOD_PASS
+  - ROBINHOOD_MFA_SECRET (optional; authenticator-app secret for 2FA)
 
 Usage:
   python robinhood.py login
@@ -147,9 +148,24 @@ def init_session():
         print("🔄 No cached session found or token expired. Initializing fresh login handshake...")
 
     # 2. Fresh Native Login
-    # By running this directly, robin_stocks will trigger the device approval push notification
-    r.login(username=user, password=password, store_session=True)
+    # With an authenticator-app secret we can answer 2FA ourselves; otherwise
+    # robin_stocks triggers the device approval push notification.
+    mfa_secret = os.environ.get("ROBINHOOD_MFA_SECRET", "").strip()
+    mfa_code = None
+    if mfa_secret:
+        import pyotp
+        mfa_code = pyotp.TOTP(mfa_secret).now()
+    r.login(username=user, password=password, mfa_code=mfa_code, store_session=True)
     print("✅ Successfully logged in and cached new session token!")
+
+
+def has_credentials() -> bool:
+    return bool(os.environ.get("ROBINHOOD_USER", "").strip()
+                and os.environ.get("ROBINHOOD_PASS", "").strip())
+
+
+def is_logged_in() -> bool:
+    return bool(getattr(_ensure_login, "_logged_in", False))
 
 
 def _ensure_login() -> str:
@@ -290,6 +306,13 @@ def cmd_positions(_args: list[str]) -> str:
         return _encode_failure(f"Positions fetch failed: {exc}")
 
     return _encode_success({"positions": positions})
+
+
+def get_held_quantity(symbol: str) -> float:
+    """Shares of `symbol` currently held in the Robinhood account (0 if none)."""
+    holdings = r.account.build_holdings() or {}
+    entry = holdings.get(symbol.upper())
+    return float(entry["quantity"]) if entry else 0.0
 
 
 def get_top_100_tickers() -> list[str]:

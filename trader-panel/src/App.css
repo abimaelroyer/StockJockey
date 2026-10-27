@@ -1,0 +1,268 @@
+:root {
+  --positive: #16a34a;
+  --negative: #dc2626;
+  --warn: #d97706;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --positive: #4ade80;
+    --negative: #f87171;
+    --warn: #fbbf24;
+  }
+}
+
+.app-container {
+  text-align: left;
+  padding: 0 24px 48px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+
+  @media (max-width: 640px) {
+    padding: 0 16px 32px;
+  }
+}
+
+.app-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  border-bottom: 1px solid var(--border);
+
+  h1 {
+    font-size: 36px;
+    margin: 24px 0;
+  }
+}
+
+.badges {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.mode-badge,
+.health-badge {
+  font-size: 14px;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+}
+
+.mode-paper {
+  color: var(--accent);
+  background: var(--accent-bg);
+  border-color: var(--accent-border);
+}
+
+.mode-live {
+  color: #fff;
+  background: var(--negative);
+  border-color: var(--negative);
+}
+
+.health-ok {
+  color: var(--positive);
+}
+
+.health-stale,
+.health-no_heartbeat {
+  color: var(--warn);
+}
+
+.health-error {
+  color: var(--negative);
+}
+
+.error {
+  color: var(--negative);
+}
+
+.save-ok {
+  color: var(--positive);
+}
+
+.hint,
+.empty {
+  font-size: 14px;
+  color: var(--text);
+}
+
+.positive {
+  color: var(--positive);
+}
+
+.negative {
+  color: var(--negative);
+}
+
+.strategy-card {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.strategy-title {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  flex-wrap: wrap;
+
+  h2 {
+    margin: 0;
+  }
+}
+
+.strategy-stats,
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 12px;
+
+  span {
+    display: block;
+    font-size: 14px;
+  }
+
+  strong {
+    font-size: 20px;
+    color: var(--text-h);
+    font-variant-numeric: tabular-nums;
+  }
+
+  strong.positive {
+    color: var(--positive);
+  }
+
+  strong.negative {
+    color: var(--negative);
+  }
+}
+
+.stat-card {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px;
+}
+
+.chart {
+  height: 480px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+
+  @media (max-width: 640px) {
+    height: 360px;
+  }
+}
+
+.period-tabs {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+button {
+  font: inherit;
+  font-size: 15px;
+  padding: 6px 14px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text-h);
+  cursor: pointer;
+
+  &.active,
+  &[type="submit"] {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fff;
+  }
+
+  &:disabled {
+    opacity: 0.6;
+    cursor: default;
+  }
+}
+
+.trades-today {
+  font-size: 15px;
+}
+
+.table-wrap {
+  overflow-x: auto;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 15px;
+  font-variant-numeric: tabular-nums;
+
+  th,
+  td {
+    text-align: left;
+    padding: 8px 10px;
+    border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+  }
+
+  th {
+    font-weight: 600;
+    color: var(--text-h);
+  }
+
+  tr.buy td:nth-child(4) {
+    color: var(--positive);
+    font-weight: 600;
+  }
+
+  tr.sell td:nth-child(4) {
+    color: var(--negative);
+    font-weight: 600;
+  }
+}
+
+.settings {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.settings-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 12px;
+
+  label {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    font-size: 14px;
+  }
+
+  input {
+    font: inherit;
+    font-size: 16px;
+    padding: 6px 10px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--bg);
+    color: var(--text-h);
+  }
+}
+
+.settings-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}

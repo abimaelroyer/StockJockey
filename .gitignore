@@ -3,3 +3,5 @@ robinhood.pickle
 __pycache__/
 *.pyc
 state/heartbeat.json
+archive/*.bak.csv
+state/status.json

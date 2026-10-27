@@ -1,0 +1,32 @@
+//@version=6
+// StockJockey -- moving average crossover, the same rule the Python bot uses.
+//
+// Add to a DAILY chart of the symbol in config.json. Use it to:
+//   * see the 20/50 crossovers on TradingView and backtest them in the
+//     Strategy Tester (TradingView's own paper results), and
+//   * optionally fire webhook alerts to the bot's /webhook/tradingview
+//     endpoint, which then trades on paper or on Robinhood per config.json.
+//
+// Alert message to paste in TradingView (Create Alert -> Message):
+//   {"secret": "YOUR_TRADINGVIEW_WEBHOOK_SECRET", "symbol": "{{ticker}}", "action": "{{strategy.order.action}}", "price": {{close}}}
+strategy("StockJockey SMA Crossover", overlay = true, default_qty_type = strategy.fixed, default_qty_value = 1, process_orders_on_close = true)
+
+shortLen = input.int(20, "Short MA (days)", minval = 1)
+longLen  = input.int(50, "Long MA (days)", minval = 2)
+
+shortMa = ta.sma(close, shortLen)
+longMa  = ta.sma(close, longLen)
+
+// Crossed on THIS bar versus the previous bar -- two consecutive days.
+goldenCross = ta.crossover(shortMa, longMa)
+deathCross  = ta.crossunder(shortMa, longMa)
+
+if goldenCross and strategy.position_size == 0
+    strategy.entry("Long", strategy.long)
+if deathCross and strategy.position_size > 0
+    strategy.close("Long")
+
+plot(shortMa, "Short MA", color = color.new(color.blue, 0), linewidth = 2)
+plot(longMa, "Long MA", color = color.new(color.orange, 0), linewidth = 2)
+plotshape(goldenCross, "Buy", shape.triangleup, location.belowbar, color.green, size = size.small)
+plotshape(deathCross, "Sell", shape.triangledown, location.abovebar, color.red, size = size.small)

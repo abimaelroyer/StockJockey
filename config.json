@@ -1,0 +1,10 @@
+{
+  "symbol": "AAPL",
+  "short_window": 20,
+  "long_window": 50,
+  "trade_quantity": 1,
+  "lookback_days": 100,
+  "mode": "paper",
+  "check_interval_minutes": 15,
+  "paper_starting_balance": 1000.0
+}

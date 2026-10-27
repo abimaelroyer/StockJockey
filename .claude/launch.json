@@ -1,0 +1,17 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "api-dev",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["api.py"],
+      "port": 5000
+    },
+    {
+      "name": "panel-dev",
+      "runtimeExecutable": "powershell",
+      "runtimeArgs": ["-NoProfile", "-Command", "cd trader-panel; $env:VITE_TRADER_URL='http://localhost:5000'; npx vite --port 5173 --strictPort"],
+      "port": 5173
+    }
+  ]
+}
