@@ -77,18 +77,31 @@ class CompletedClosesTests(unittest.TestCase):
 
 
 class ConfigTests(unittest.TestCase):
-    def test_defaults_match_spec(self):
+    def test_defaults(self):
         cfg = config.validate({})
-        self.assertEqual((cfg["symbol"], cfg["short_window"], cfg["long_window"], cfg["trade_quantity"]),
-                         ("AAPL", 20, 50, 1))
+        self.assertEqual((cfg["symbols"], cfg["short_window"], cfg["long_window"], cfg["trade_dollars"]),
+                         (["AAPL"], 20, 50, 100.0))
 
-    def test_rejects_bad_windows(self):
-        with self.assertRaises(ValueError):
-            config.validate({"short_window": 50, "long_window": 20})
-        with self.assertRaises(ValueError):
-            config.validate({"long_window": 120, "lookback_days": 100})
-        with self.assertRaises(ValueError):
-            config.validate({"mode": "yolo"})
+    def test_symbols_are_cleaned(self):
+        cfg = config.validate({"symbols": ["aapl", " msft ", "AAPL", ""]})
+        self.assertEqual(cfg["symbols"], ["AAPL", "MSFT"])
+        self.assertEqual(config.validate({"symbols": "spy, qqq"})["symbols"], ["SPY", "QQQ"])
+
+    def test_old_single_symbol_config_migrates(self):
+        cfg = config.validate({"symbol": "msft", "trade_quantity": 1})
+        self.assertEqual(cfg["symbols"], ["MSFT"])
+        self.assertNotIn("symbol", cfg)
+        self.assertNotIn("trade_quantity", cfg)
+
+    def test_rejects_bad_values(self):
+        for bad in ({"short_window": 50, "long_window": 20},
+                    {"long_window": 120, "lookback_days": 100},
+                    {"mode": "yolo"},
+                    {"symbols": []},
+                    {"symbols": ["AAPL", "NOT A TICKER"]},
+                    {"trade_dollars": 0.5}):
+            with self.assertRaises(ValueError, msg=bad):
+                config.validate(bad)
 
 
 class PaperBrokerTests(unittest.TestCase):
@@ -109,23 +122,36 @@ class PaperBrokerTests(unittest.TestCase):
     def test_buy_then_sell_round_trip(self):
         buy = brokers.execute_signal(self.cfg, "BUY", "AAPL", 250.0, "bot", 251.0, 249.0)
         self.assertEqual(buy["status"], "filled")
-        self.assertEqual(brokers.load_paper_balance(1000), 750.0)
-        self.assertEqual(brokers.load_positions()["AAPL"]["quantity"], 1)
+        self.assertEqual(brokers.load_positions()["AAPL"]["quantity"], 0.4)  # $100 / $250
+        self.assertAlmostEqual(brokers.load_paper_balance(1000), 900.0)
 
         again = brokers.execute_signal(self.cfg, "BUY", "AAPL", 255.0, "tradingview")
         self.assertEqual(again["status"], "skipped")
 
         sell = brokers.execute_signal(self.cfg, "SELL", "AAPL", 260.0, "bot")
         self.assertEqual(sell["status"], "filled")
-        self.assertEqual(brokers.load_paper_balance(1000), 1010.0)
+        self.assertAlmostEqual(brokers.load_paper_balance(1000), 1004.0)
         self.assertEqual(brokers.load_positions(), {})
         self.assertEqual([r["action"] for r in brokers.read_ledger()], ["BUY", "SELL"])
+
+    def test_fractional_quantity_rounds_down(self):
+        brokers.execute_signal(self.cfg, "BUY", "AAPL", 347.0, "bot")
+        qty = brokers.load_positions()["AAPL"]["quantity"]
+        self.assertEqual(qty, 0.288184)
+        self.assertLessEqual(qty * 347.0, 100.0)
+
+    def test_one_balance_covers_several_symbols(self):
+        for sym, px in (("AAPL", 347.0), ("MSFT", 532.0), ("SPY", 771.0)):
+            self.assertEqual(brokers.execute_signal(self.cfg, "BUY", sym, px, "bot")["status"], "filled")
+        self.assertEqual(sorted(brokers.load_positions()), ["AAPL", "MSFT", "SPY"])
+        # three $100 buys, each rounded down to whole millionths of a share
+        self.assertAlmostEqual(brokers.load_paper_balance(1000), 700.0, delta=0.01)
 
     def test_sell_without_position_is_skipped(self):
         self.assertEqual(brokers.execute_signal(self.cfg, "SELL", "AAPL", 260.0, "bot")["status"], "skipped")
 
     def test_insufficient_paper_balance_is_skipped(self):
-        brokers.save_paper_balance(100)
+        brokers.save_paper_balance(60)
         result = brokers.execute_signal(self.cfg, "BUY", "AAPL", 250.0, "bot")
         self.assertEqual(result["status"], "skipped")
         self.assertEqual(brokers.read_ledger(), [])
@@ -136,6 +162,46 @@ class PaperBrokerTests(unittest.TestCase):
         result = brokers.execute_signal(self.cfg, "SELL", "AAPL", 260.0, "bot")
         self.assertEqual(result["status"], "skipped")
         self.assertIn("AAPL", brokers.load_positions())
+
+
+class RunCycleTests(unittest.TestCase):
+    def setUp(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        for name, rel in [("STATE_DIR", ""), ("STATUS_PATH", "status.json"),
+                          ("SIGNAL_STATE_PATH", "signal_state.json")]:
+            patcher = mock.patch.object(strategy, name, os.path.join(tmp.name, rel))
+            patcher.start()
+            self.addCleanup(patcher.stop)
+        self.cfg = config.validate({"symbols": ["UP", "FLAT", "BAD"], "short_window": 2,
+                                    "long_window": 4, "lookback_days": 10})
+
+    def fake_fetch(self, symbol, lookback_days):
+        if symbol == "BAD":
+            raise RuntimeError("no data")
+        values = [10, 10, 10, 9, 9, 13] if symbol == "UP" else [5, 5, 5, 5, 5, 5]
+        return series(values)
+
+    def test_each_symbol_checked_and_failures_isolated(self):
+        with mock.patch.object(strategy, "fetch_daily_closes", self.fake_fetch),              mock.patch.object(strategy.brokers, "execute_signal",
+                               return_value={"status": "filled", "trade": {}}) as execute:
+            rows = strategy.run_cycle(self.cfg)
+        self.assertEqual(rows["UP"]["signal"], "BUY")
+        self.assertIsNone(rows["FLAT"]["signal"])
+        self.assertIn("error", rows["BAD"])
+        execute.assert_called_once()
+        self.assertEqual(execute.call_args.args[1:3], ("BUY", "UP"))
+
+        # The same crossover is not traded twice.
+        with mock.patch.object(strategy, "fetch_daily_closes", self.fake_fetch),              mock.patch.object(strategy.brokers, "execute_signal") as execute:
+            strategy.run_cycle(self.cfg)
+        execute.assert_not_called()
+
+    def test_all_symbols_failing_raises(self):
+        cfg = config.validate({"symbols": ["BAD"], "short_window": 2, "long_window": 4, "lookback_days": 10})
+        with mock.patch.object(strategy, "fetch_daily_closes", self.fake_fetch):
+            with self.assertRaises(RuntimeError):
+                strategy.run_cycle(cfg)
 
 
 if __name__ == "__main__":

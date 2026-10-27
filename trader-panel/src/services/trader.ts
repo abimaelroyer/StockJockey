@@ -38,10 +38,10 @@ export interface Health {
 }
 
 export interface Config {
-    symbol: string;
+    symbols: string[];
     short_window: number;
     long_window: number;
-    trade_quantity: number;
+    trade_dollars: number;
     lookback_days: number;
     mode: Mode;
     check_interval_minutes: number;
@@ -50,14 +50,16 @@ export interface Config {
 
 export type EditableConfig = Pick<
     Config,
-    "symbol" | "short_window" | "long_window" | "trade_quantity" | "lookback_days" | "check_interval_minutes"
+    "symbols" | "short_window" | "long_window" | "trade_dollars" | "lookback_days" | "check_interval_minutes"
 >;
 
-export interface Status {
-    symbol?: string;
-    mode?: Mode;
-    short_window?: number;
-    long_window?: number;
+export interface Crossover {
+    date: string;
+    action: "BUY" | "SELL";
+    result: string;
+}
+
+export interface SymbolStatus {
     as_of?: string;
     close?: number;
     latest_price?: number;
@@ -65,8 +67,17 @@ export interface Status {
     long_ma?: number;
     trend?: "above" | "below";
     signal?: "BUY" | "SELL" | null;
-    last_crossover?: { date: string; action: "BUY" | "SELL"; result: string } | null;
+    last_crossover?: Crossover | null;
+    error?: string;
+}
+
+export interface Status {
+    mode?: Mode;
+    short_window?: number;
+    long_window?: number;
+    trade_dollars?: number;
     checked_at?: string;
+    symbols?: Record<string, SymbolStatus>;
 }
 
 export interface ModePnL {

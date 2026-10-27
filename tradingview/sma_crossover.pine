@@ -1,7 +1,7 @@
 //@version=6
 // StockJockey -- moving average crossover, the same rule the Python bot uses.
 //
-// Add to a DAILY chart of the symbol in config.json. Use it to:
+// Add to a DAILY chart of any symbol in config.json (one alert per symbol). Use it to:
 //   * see the 20/50 crossovers on TradingView and backtest them in the
 //     Strategy Tester (TradingView's own paper results), and
 //   * optionally fire webhook alerts to the bot at

@@ -25,13 +25,14 @@ const PERIODS = [
     { key: "all", label: "All" },
 ];
 
-const SETTINGS_FIELDS: { key: keyof EditableConfig; label: string; type: "text" | "number" }[] = [
-    { key: "symbol", label: "Symbol", type: "text" },
-    { key: "short_window", label: "Short MA (days)", type: "number" },
-    { key: "long_window", label: "Long MA (days)", type: "number" },
-    { key: "trade_quantity", label: "Shares per trade", type: "number" },
-    { key: "lookback_days", label: "History (days)", type: "number" },
-    { key: "check_interval_minutes", label: "Check every (min)", type: "number" },
+type NumberField = Exclude<keyof EditableConfig, "symbols">;
+
+const NUMBER_FIELDS: { key: NumberField; label: string; min: number; step?: number }[] = [
+    { key: "short_window", label: "Short MA (days)", min: 1 },
+    { key: "long_window", label: "Long MA (days)", min: 2 },
+    { key: "trade_dollars", label: "Dollars per trade", min: 1, step: 0.01 },
+    { key: "lookback_days", label: "History (days)", min: 2 },
+    { key: "check_interval_minutes", label: "Check every (min)", min: 1 },
 ];
 
 function formatTimestamp(ts: string): { date: string; time: string } {
@@ -58,8 +59,12 @@ function settled<T>(result: PromiseSettledResult<T>): T | undefined {
     return result.status === "fulfilled" ? result.value : undefined;
 }
 
+const shares = (q: number | string) => parseFloat(Number(q).toFixed(4)).toString();
+
+type Draft = Omit<EditableConfig, "symbols"> & { symbols: string };
+
 function SettingsForm({ config, onSaved }: { config: Config; onSaved: (c: Config) => void }) {
-    const [draft, setDraft] = useState<EditableConfig>(config);
+    const [draft, setDraft] = useState<Draft>({ ...config, symbols: config.symbols.join(", ") });
     const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
     const [saving, setSaving] = useState(false);
 
@@ -67,7 +72,8 @@ function SettingsForm({ config, onSaved }: { config: Config; onSaved: (c: Config
         e.preventDefault();
         setSaving(true);
         try {
-            const saved = await updateConfig(draft);
+            const symbols = draft.symbols.split(/[\s,]+/).filter(Boolean);
+            const saved = await updateConfig({ ...draft, symbols });
             onSaved(saved);
             setMessage({ ok: true, text: "Saved. The bot picks this up on its next check." });
         } catch (err) {
@@ -80,27 +86,33 @@ function SettingsForm({ config, onSaved }: { config: Config; onSaved: (c: Config
 
     return (
         <form className="settings" onSubmit={submit}>
+            <label className="symbols-field">
+                <span>Symbols (comma-separated)</span>
+                <input
+                    type="text"
+                    value={draft.symbols}
+                    placeholder="AAPL, MSFT, SPY"
+                    onChange={(e) => setDraft({ ...draft, symbols: e.target.value.toUpperCase() })}
+                />
+            </label>
             <div className="settings-grid">
-                {SETTINGS_FIELDS.map((f) => (
+                {NUMBER_FIELDS.map((f) => (
                     <label key={f.key}>
                         <span>{f.label}</span>
                         <input
-                            type={f.type}
-                            min={f.type === "number" ? 1 : undefined}
+                            type="number"
+                            min={f.min}
+                            step={f.step ?? 1}
                             value={draft[f.key]}
-                            onChange={(e) =>
-                                setDraft({
-                                    ...draft,
-                                    [f.key]: f.type === "number" ? Number(e.target.value) : e.target.value.toUpperCase(),
-                                })
-                            }
+                            onChange={(e) => setDraft({ ...draft, [f.key]: Number(e.target.value) })}
                         />
                     </label>
                 ))}
             </div>
             <div className="settings-footer">
                 <p className="hint">
-                    Paper / live mode is set in <code>config.json</code> on the server, not here.
+                    Each buy spends the dollar amount on fractional shares. Paper / live mode is set in{" "}
+                    <code>config.json</code> on the server, not here.
                 </p>
                 <button type="submit" disabled={saving}>
                     {saving ? "Saving…" : "Save settings"}
@@ -121,6 +133,7 @@ function App() {
     const [config, setConfig] = useState<Config | null>(null);
     const [status, setStatus] = useState<Status>({});
     const [period, setPeriod] = useState("all");
+    const [selected, setSelected] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
 
     const loadAll = useCallback(async (currentPeriod: string) => {
@@ -161,7 +174,8 @@ function App() {
     const modePnl = pnl?.modes[mode];
     const shortLabel = `${config?.short_window ?? 20}-day MA`;
     const longLabel = `${config?.long_window ?? 50}-day MA`;
-    const statusIsCurrent = config && status.symbol === config.symbol;
+    const chartSymbol = config && selected && config.symbols.includes(selected) ? selected : config?.symbols[0];
+    const rows = status.symbols ?? {};
 
     return (
         <div className="app-container">
@@ -182,51 +196,77 @@ function App() {
             {config && (
                 <section className="strategy-card">
                     <div className="strategy-title">
-                        <h2>{config.symbol}</h2>
+                        <h2>
+                            {config.short_window}/{config.long_window} SMA crossover
+                        </h2>
                         <span>
-                            {config.short_window}/{config.long_window} SMA crossover · {config.trade_quantity} share
-                            {config.trade_quantity === 1 ? "" : "s"} per trade
+                            {money(config.trade_dollars)} per buy · {config.symbols.length} symbol
+                            {config.symbols.length === 1 ? "" : "s"}
                         </span>
                     </div>
-                    {statusIsCurrent && status.short_ma != null ? (
-                        <>
-                            <div className="strategy-stats">
-                                <div>
-                                    <span>Last close ({status.as_of})</span>
-                                    <strong>{money(status.close)}</strong>
-                                </div>
-                                <div>
-                                    <span>{shortLabel}</span>
-                                    <strong>{money(status.short_ma)}</strong>
-                                </div>
-                                <div>
-                                    <span>{longLabel}</span>
-                                    <strong>{money(status.long_ma)}</strong>
-                                </div>
-                                <div>
-                                    <span>Trend</span>
-                                    <strong className={status.trend === "above" ? "positive" : "negative"}>
-                                        {status.trend === "above" ? "Short above long ▲" : "Short below long ▼"}
-                                    </strong>
-                                </div>
-                            </div>
-                            <p className="hint">
-                                {status.last_crossover
-                                    ? `Last crossover acted on: ${status.last_crossover.action} on ${status.last_crossover.date} (${status.last_crossover.result}).`
-                                    : "No crossover acted on yet."}{" "}
-                                Checked {status.checked_at ? new Date(status.checked_at).toLocaleString() : "—"}.
-                            </p>
-                        </>
-                    ) : (
-                        <p className="hint">Waiting for the bot's first check during market hours.</p>
-                    )}
+                    <div className="table-wrap">
+                        <table className="symbols-table">
+                            <thead>
+                                <tr>
+                                    <th>Symbol</th>
+                                    <th>Last close</th>
+                                    <th>{shortLabel}</th>
+                                    <th>{longLabel}</th>
+                                    <th>Trend</th>
+                                    <th>Last crossover</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {config.symbols.map((sym) => {
+                                    const row = rows[sym];
+                                    return (
+                                        <tr key={sym} className={sym === chartSymbol ? "selected" : ""}>
+                                            <td>
+                                                <button
+                                                    type="button"
+                                                    className="symbol-button"
+                                                    aria-pressed={sym === chartSymbol}
+                                                    onClick={() => setSelected(sym)}
+                                                >
+                                                    {sym}
+                                                </button>
+                                            </td>
+                                            {row?.error ? (
+                                                <td colSpan={5} className="error">{row.error}</td>
+                                            ) : row?.short_ma != null ? (
+                                                <>
+                                                    <td>{money(row.close)}</td>
+                                                    <td>{money(row.short_ma)}</td>
+                                                    <td>{money(row.long_ma)}</td>
+                                                    <td className={row.trend === "above" ? "positive" : "negative"}>
+                                                        {row.trend === "above" ? "Above ▲" : "Below ▼"}
+                                                    </td>
+                                                    <td>
+                                                        {row.last_crossover
+                                                            ? `${row.last_crossover.action} ${row.last_crossover.date} (${row.last_crossover.result})`
+                                                            : "—"}
+                                                    </td>
+                                                </>
+                                            ) : (
+                                                <td colSpan={5} className="hint">Waiting for the next check during market hours.</td>
+                                            )}
+                                        </tr>
+                                    );
+                                })}
+                            </tbody>
+                        </table>
+                    </div>
+                    <p className="hint">
+                        Closes are the last completed trading day. Checked{" "}
+                        {status.checked_at ? new Date(status.checked_at).toLocaleString() : "—"}. Tap a symbol to chart it.
+                    </p>
                 </section>
             )}
 
-            {config && (
+            {config && chartSymbol && (
                 <section>
                     <TradingViewChart
-                        symbol={config.symbol}
+                        symbol={chartSymbol}
                         shortWindow={config.short_window}
                         longWindow={config.long_window}
                     />
@@ -294,7 +334,7 @@ function App() {
                                 {Object.entries(positions).map(([symbol, pos]) => (
                                     <tr key={symbol}>
                                         <td>{symbol}</td>
-                                        <td>{pos.quantity}</td>
+                                        <td>{shares(pos.quantity)}</td>
                                         <td>{money(pos.entry_price)}</td>
                                         <td>{money(pos.invested)}</td>
                                         <td>{pos.mode}</td>
@@ -339,7 +379,7 @@ function App() {
                                                 <td>{time}</td>
                                                 <td>{t.symbol}</td>
                                                 <td>{t.action}</td>
-                                                <td>{t.quantity}</td>
+                                                <td>{shares(t.quantity)}</td>
                                                 <td>{money(parseFloat(t.price))}</td>
                                                 <td>{t.short_ma ? parseFloat(t.short_ma).toFixed(2) : "—"}</td>
                                                 <td>{t.long_ma ? parseFloat(t.long_ma).toFixed(2) : "—"}</td>

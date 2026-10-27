@@ -199,10 +199,13 @@ def tradingview_webhook():
     if action not in ("BUY", "SELL"):
         return jsonify({"error": "action must be buy or sell"}), 400
 
-    # TradingView may send "NASDAQ:AAPL"; only the configured symbol is traded.
-    symbol = str(payload.get("symbol") or cfg["symbol"]).split(":")[-1].strip().upper()
-    if symbol != cfg["symbol"]:
-        return jsonify({"error": f"bot is configured for {cfg['symbol']}, not {symbol}"}), 400
+    # TradingView may send "NASDAQ:AAPL"; only configured symbols are traded.
+    symbol = str(payload.get("symbol") or "").split(":")[-1].strip().upper()
+    if not symbol and len(cfg["symbols"]) == 1:
+        symbol = cfg["symbols"][0]
+    if symbol not in cfg["symbols"]:
+        return jsonify({"error": f"{symbol or 'symbol'} is not in the bot's symbols "
+                                 f"({', '.join(cfg['symbols'])})"}), 400
 
     try:
         price = float(payload["price"])

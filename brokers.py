@@ -5,7 +5,10 @@ Two brokers sit behind one interface, chosen by config.json's "mode":
   paper -- simulated fills against a local cash balance (state/paper_balance.json).
            No money moves. Robinhood has no paper-trading API, so this is how
            paper trading works for both the bot and TradingView alerts.
-  live  -- real market orders on Robinhood via robin_stocks.
+  live  -- real fractional market orders on Robinhood via robin_stocks.
+
+Every buy spends cfg["trade_dollars"] (fractional shares), so one paper or
+Robinhood balance can cover several symbols.
 
 Both the strategy loop and the TradingView webhook call execute_signal(), which
 is serialised by a lock so the two can never double-buy the same symbol.
@@ -14,6 +17,7 @@ is serialised by a lock so the two can never double-buy the same symbol.
 import csv
 import datetime
 import json
+import math
 import os
 import threading
 import urllib.request
@@ -98,18 +102,23 @@ class PositionGone(SkipTrade):
     """The shares behind a bot position are no longer in the account."""
 
 
+def _floor_shares(quantity):
+    """Round a share count down to Robinhood's 6-decimal fractional precision."""
+    return math.floor(quantity * 1_000_000) / 1_000_000
+
+
 class PaperBroker:
     mode = "paper"
 
     def __init__(self, cfg):
         self.starting_balance = cfg["paper_starting_balance"]
 
-    def buy(self, symbol, quantity, price):
+    def buy(self, symbol, dollars, price):
         balance = load_paper_balance(self.starting_balance)
-        cost = quantity * price
-        if balance < cost:
-            raise SkipTrade(f"paper balance ${balance:.2f} is below the ${cost:.2f} cost")
-        save_paper_balance(balance - cost)
+        if balance < dollars:
+            raise SkipTrade(f"paper balance ${balance:.2f} is below the ${dollars:.2f} trade size")
+        quantity = _floor_shares(dollars / price)
+        save_paper_balance(balance - quantity * price)
         return quantity, price
 
     def sell(self, symbol, quantity, price):
@@ -119,6 +128,9 @@ class PaperBroker:
 
 
 class RobinhoodBroker:
+    """Dollar-sized fractional market orders. Fill prices are recorded as the
+    quote at order time; Robinhood fills fractional orders moments later."""
+
     mode = "live"
 
     def __init__(self, cfg):
@@ -126,30 +138,32 @@ class RobinhoodBroker:
         if status.get("status") == "error":
             raise RuntimeError(f"Login check failed: {status.get('message')}")
 
-    def _order(self, side, symbol, quantity):
-        result = json.loads(robinhood._execute_trade(side, symbol, quantity))
+    def _order(self, side, symbol, amount):
+        result = json.loads(robinhood._execute_fractional_trade(side, symbol, amount))
         if result.get("status") == "error":
             raise RuntimeError(f"Robinhood {side} failed: {result.get('message')}")
         order = (result.get("data") or {}).get("order") or {}
         if isinstance(order, dict) and order.get("detail"):
             # robin_stocks returns Robinhood's rejection as a dict, not an exception
             raise RuntimeError(f"Robinhood rejected the {side}: {order['detail']}")
+        print(f"Robinhood order response: {order}")
         return order
 
-    def buy(self, symbol, quantity, price):
-        order = self._order("buy", symbol, quantity)
-        print(f"Robinhood order response: {order}")
-        return quantity, float(order.get("price") or price)
+    def buy(self, symbol, dollars, price):
+        order = self._order("buy", symbol, dollars)
+        try:
+            quantity = float(order.get("quantity"))
+        except (TypeError, ValueError):
+            quantity = _floor_shares(dollars / price)
+        return quantity, price
 
     def sell(self, symbol, quantity, price):
-        held = robinhood.get_held_quantity(symbol)
-        quantity = min(quantity, int(held))
-        if quantity < 1:
-            raise PositionGone(f"Robinhood shows no whole shares of {symbol}; "
+        quantity = _floor_shares(min(quantity, robinhood.get_held_quantity(symbol)))
+        if quantity <= 0:
+            raise PositionGone(f"Robinhood shows no shares of {symbol}; "
                                f"clearing the bot's position record")
-        order = self._order("sell", symbol, quantity)
-        print(f"Robinhood order response: {order}")
-        return quantity, float(order.get("price") or price)
+        self._order("sell", symbol, quantity)
+        return quantity, price
 
 
 def get_broker(cfg):
@@ -247,7 +261,7 @@ def execute_signal(cfg, action, symbol, price, source, short_ma=None, long_ma=No
         broker = get_broker(cfg)
         try:
             if action == "BUY":
-                qty, fill = broker.buy(symbol, cfg["trade_quantity"], price)
+                qty, fill = broker.buy(symbol, cfg["trade_dollars"], price)
                 positions[symbol] = {
                     "entry_price": fill,
                     "quantity": qty,
@@ -256,7 +270,7 @@ def execute_signal(cfg, action, symbol, price, source, short_ma=None, long_ma=No
                     "mode": broker.mode,
                 }
             else:
-                qty, fill = broker.sell(symbol, int(held["quantity"]), price)
+                qty, fill = broker.sell(symbol, float(held["quantity"]), price)
                 del positions[symbol]
         except PositionGone as e:
             del positions[symbol]
@@ -270,7 +284,7 @@ def execute_signal(cfg, action, symbol, price, source, short_ma=None, long_ma=No
             "timestamp": _now_iso(),
             "symbol": symbol,
             "action": action,
-            "quantity": qty,
+            "quantity": round(qty, 6),
             "price": round(fill, 4),
             "short_ma": "" if short_ma is None else round(short_ma, 4),
             "long_ma": "" if long_ma is None else round(long_ma, 4),
@@ -280,7 +294,7 @@ def execute_signal(cfg, action, symbol, price, source, short_ma=None, long_ma=No
         log_trade(row)
 
     print(f"[{broker.mode.upper()}] {action} "
-          f"{qty} {symbol} @ ${fill:.2f} (via {source})")
+          f"{qty:g} {symbol} @ ${fill:.2f} (via {source})")
     _notify_discord(row)
     return {"status": "filled", "trade": row}
 

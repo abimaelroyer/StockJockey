@@ -266,3 +266,43 @@ table {
   gap: 12px;
   flex-wrap: wrap;
 }
+
+.symbols-table {
+  tr.selected td {
+    background: var(--accent-bg);
+  }
+
+  td.hint,
+  td.error {
+    white-space: normal;
+  }
+}
+
+.symbol-button {
+  font-weight: 600;
+  padding: 2px 8px;
+  border-color: transparent;
+  background: transparent;
+  color: var(--accent);
+
+  &[aria-pressed="true"] {
+    border-color: var(--accent-border);
+  }
+}
+
+.symbols-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 14px;
+
+  input {
+    font: inherit;
+    font-size: 16px;
+    padding: 6px 10px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--bg);
+    color: var(--text-h);
+  }
+}

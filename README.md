@@ -1,12 +1,12 @@
 # StockJockey
 
-A moving average crossover bot. It watches one stock (AAPL by default), and
-when the 20-day simple moving average crosses the 50-day between two
-consecutive days it places an order:
+A moving average crossover bot. It watches a list of stocks (AAPL by
+default), and when a stock's 20-day simple moving average crosses its 50-day
+between two consecutive days it places an order for that stock:
 
 | Crossover | Meaning | Order |
 |---|---|---|
-| 20-day goes from at/below to **above** the 50-day | golden cross | BUY `trade_quantity` shares |
+| 20-day goes from at/below to **above** the 50-day | golden cross | BUY `trade_dollars` worth (fractional shares) |
 | 20-day goes from at/above to **below** the 50-day | death cross | SELL the shares the bot bought |
 
 Price history (the last `lookback_days` daily bars) comes from **yfinance**.
@@ -25,10 +25,10 @@ cd trader-panel && npm install
 
 ```json
 {
-  "symbol": "AAPL",
+  "symbols": ["AAPL"],
   "short_window": 20,
   "long_window": 50,
-  "trade_quantity": 1,
+  "trade_dollars": 100.0,
   "lookback_days": 100,
   "mode": "paper",
   "check_interval_minutes": 15,
@@ -36,8 +36,16 @@ cd trader-panel && npm install
 }
 ```
 
+- `symbols`: every stock the bot watches (up to 25). Each one gets the same
+  crossover rules and is tracked separately, so the bot can hold several at
+  once. A symbol yfinance doesn't recognise shows an error in the panel
+  without stopping the others.
+- `trade_dollars`: how much each BUY spends, as fractional shares (minimum
+  $1). One balance covers every symbol: with $1,000 and $100 per trade the bot
+  can hold up to 10 positions; further BUYs are skipped until a SELL frees cash.
 - `mode`: `"paper"` simulates fills against a local cash balance
-  (`state/paper_balance.json`). `"live"` sends real market orders to Robinhood.
+  (`state/paper_balance.json`). `"live"` sends real fractional market orders to
+  Robinhood (regular market hours only).
   You can only change this by editing the file and restarting the bot. The
   panel can't flip it.
 - The panel's **Strategy Settings** form edits every other field.
@@ -103,8 +111,8 @@ simulated by this bot, and TradingView is used two ways:
      ```json
      {"secret": "<TRADINGVIEW_WEBHOOK_SECRET>", "symbol": "{{ticker}}", "action": "{{strategy.order.action}}", "price": {{close}}}
      ```
-   The alert is executed by whichever broker `mode` selects. Only the
-   configured symbol is accepted, and a BUY while already holding (or a SELL
+   Create one alert per symbol. The alert is executed by whichever broker
+   `mode` selects. Only symbols in `symbols` are accepted, and a BUY while already holding (or a SELL
    with nothing held) is skipped. That makes it safe to run alerts alongside
    the bot's own loop.
 

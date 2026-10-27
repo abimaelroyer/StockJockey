@@ -1,8 +1,8 @@
 {
-  "symbol": "AAPL",
+  "symbols": ["AAPL"],
   "short_window": 20,
   "long_window": 50,
-  "trade_quantity": 1,
+  "trade_dollars": 100.0,
   "lookback_days": 100,
   "mode": "paper",
   "check_interval_minutes": 15,

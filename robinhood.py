@@ -264,6 +264,51 @@ def _execute_trade(side: str, symbol: str, quantity: Any) -> str:
     )
 
 
+def _execute_fractional_trade(side: str, symbol: str, amount: Any) -> str:
+    """Fractional market order: `amount` is dollars for a buy, shares for a sell.
+
+    Robinhood fills fractional orders during regular market hours only.
+    """
+    login_status = _ensure_login()
+    if json.loads(login_status).get("status") == "error":
+        return login_status
+
+    if side not in ("buy", "sell"):
+        return _encode_failure("Side must be 'buy' or 'sell'.")
+
+    if not symbol or not isinstance(symbol, str) or not symbol.isalpha():
+        return _encode_failure("Invalid symbol.")
+
+    try:
+        amount = float(amount)
+    except (TypeError, ValueError):
+        return _encode_failure("Amount must be a number.")
+
+    if amount <= 0:
+        return _encode_failure("Amount must be positive.")
+
+    try:
+        if side == "buy":
+            result = r.orders.order_buy_fractional_by_price(symbol, round(amount, 2))
+        else:
+            result = r.orders.order_sell_fractional_by_quantity(symbol, round(amount, 6))
+        if isinstance(result, dict):
+            result.pop("oauth_token", None)
+            result.pop("refresh_token", None)
+            result.pop("access_token", None)
+    except Exception as exc:
+        return _encode_failure(f"Order failed: {type(exc).__name__}: {exc}")
+
+    return _encode_success(
+        {
+            "side": side,
+            "symbol": symbol.upper(),
+            "amount": amount,
+            "order": result,
+        }
+    )
+
+
 def cmd_buy(args: list[str]) -> str:
     if len(args) < 2:
         return _encode_failure("Usage: buy <SYMBOL> <QUANTITY>")

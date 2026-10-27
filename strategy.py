@@ -1,8 +1,8 @@
 """Moving average crossover bot.
 
-Every cycle during market hours:
+Every cycle during market hours, for each symbol in config.json:
 
-  1. Read config.json (symbol, short/long MA periods, trade size, mode).
+  1. Read config.json (symbols, short/long MA periods, dollars per trade, mode).
   2. Fetch the last `lookback_days` daily bars for the symbol from yfinance.
   3. Compute the short and long simple moving averages.
   4. Compare the two most recent COMPLETED days. A crossover is when the short
@@ -65,9 +65,12 @@ def fetch_daily_closes(symbol, lookback_days):
     covers weekends and holidays, then the series is trimmed by the caller.
     """
     start = datetime.date.today() - datetime.timedelta(days=int(lookback_days * 1.6) + 10)
-    history = yf.Ticker(symbol).history(start=start.isoformat(), interval="1d", auto_adjust=False)
+    try:
+        history = yf.Ticker(symbol).history(start=start.isoformat(), interval="1d", auto_adjust=False)
+    except Exception as e:
+        raise RuntimeError(f"No price data for {symbol} from yfinance (check the symbol): {e}")
     if history is None or history.empty or "Close" not in history:
-        raise RuntimeError(f"yfinance returned no daily data for {symbol}")
+        raise RuntimeError(f"No price data for {symbol} from yfinance (check the symbol)")
     closes = history["Close"].dropna()
     closes.index = [ts.date() for ts in closes.index]
     return closes
@@ -145,8 +148,8 @@ def write_heartbeat(status="ok", detail=None):
 # ---------------------------------------------------------------------------
 
 
-def run_cycle(cfg):
-    symbol = cfg["symbol"]
+def check_symbol(cfg, symbol, signal_state):
+    """Check one symbol for a crossover, trade it, and return its status row."""
     closes = fetch_daily_closes(symbol, cfg["lookback_days"])
     latest_price = float(closes.iloc[-1])
 
@@ -168,30 +171,25 @@ def run_cycle(cfg):
           f"{cfg['short_window']}-day MA {last.short_ma:.2f} | "
           f"{cfg['long_window']}-day MA {last.long_ma:.2f} | signal: {signal or 'none'}")
 
-    signal_state = _load_signal_state()
     last_handled = signal_state.get(symbol, {})
-    result = None
     if signal and last_handled.get("date") == bar_date and last_handled.get("action") == signal:
-        print(f"{signal} crossover on {bar_date} already handled.")
+        print(f"{symbol}: {signal} crossover on {bar_date} already handled.")
     elif signal:
-        print(f"{signal} crossover: {cfg['short_window']}-day MA crossed "
+        print(f"{symbol}: {signal} crossover: {cfg['short_window']}-day MA crossed "
               f"{'above' if signal == 'BUY' else 'below'} the {cfg['long_window']}-day MA on {bar_date}.")
         result = brokers.execute_signal(
             cfg, signal, symbol, latest_price, source="bot",
             short_ma=float(last.short_ma), long_ma=float(last.long_ma),
         )
         if result["status"] == "skipped":
-            print(f"Order skipped: {result['reason']}")
+            print(f"{symbol}: order skipped: {result['reason']}")
         # Broker errors raise before this point, so a failed order is retried
-        # next cycle; filled and deliberately-skipped signals are not.
+        # next cycle; filled and deliberately-skipped signals are not. Saved
+        # per symbol so a crash later in the cycle can't repeat this order.
         signal_state[symbol] = {"date": bar_date, "action": signal, "result": result["status"]}
         _write_json(SIGNAL_STATE_PATH, signal_state)
 
-    _write_json(STATUS_PATH, {
-        "symbol": symbol,
-        "mode": cfg["mode"],
-        "short_window": cfg["short_window"],
-        "long_window": cfg["long_window"],
+    return {
         "as_of": bar_date,
         "close": round(float(last.close), 4),
         "latest_price": round(latest_price, 4),
@@ -200,9 +198,39 @@ def run_cycle(cfg):
         "trend": "above" if last.short_ma > last.long_ma else "below",
         "signal": signal,
         "last_crossover": signal_state.get(symbol),
+    }
+
+
+def _is_login_error(exc):
+    return "Login" in str(exc) or "Verification challenge" in str(exc)
+
+
+def run_cycle(cfg):
+    """Check every configured symbol. One symbol's data problem doesn't stop
+    the others; a Robinhood login failure does, since every order would fail."""
+    signal_state = _load_signal_state()
+    rows = {}
+    for symbol in cfg["symbols"]:
+        try:
+            rows[symbol] = check_symbol(cfg, symbol, signal_state)
+        except Exception as e:
+            if _is_login_error(e):
+                raise
+            print(f"{symbol}: check failed: {e}", file=sys.stderr)
+            rows[symbol] = {"error": str(e)}
+
+    _write_json(STATUS_PATH, {
+        "mode": cfg["mode"],
+        "short_window": cfg["short_window"],
+        "long_window": cfg["long_window"],
+        "trade_dollars": cfg["trade_dollars"],
         "checked_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+        "symbols": rows,
     })
-    return signal, result
+    failed = [s for s, row in rows.items() if "error" in row]
+    if failed and len(failed) == len(rows):
+        raise RuntimeError(f"Every symbol failed this cycle (first error: {rows[failed[0]]['error']})")
+    return rows
 
 
 def run_strategy():
@@ -211,8 +239,8 @@ def run_strategy():
         try:
             cfg = load_config()
             print(f"\nCycle at {market_now().strftime('%Y-%m-%d %I:%M %p %Z')} | "
-                  f"{cfg['symbol']} {cfg['short_window']}/{cfg['long_window']} SMA | "
-                  f"{cfg['trade_quantity']} share(s) | {cfg['mode'].upper()} mode")
+                  f"{', '.join(cfg['symbols'])} | {cfg['short_window']}/{cfg['long_window']} SMA | "
+                  f"${cfg['trade_dollars']:.2f} per trade | {cfg['mode'].upper()} mode")
 
             if not market_is_open():
                 print("Market closed. Idling...")
@@ -220,14 +248,15 @@ def run_strategy():
                 time.sleep(CLOSED_MARKET_SLEEP_SECONDS)
                 continue
 
-            run_cycle(cfg)
-            write_heartbeat("ok")
+            rows = run_cycle(cfg)
+            failed = [s for s, row in rows.items() if "error" in row]
+            write_heartbeat("ok", f"check failed for {', '.join(failed)}" if failed else None)
             time.sleep(cfg["check_interval_minutes"] * 60)
 
         except Exception as e:
             print(f"\n[ERROR] Cycle failed: {e}", file=sys.stderr)
             write_heartbeat("error", str(e))
-            if "Login" in str(e):
+            if _is_login_error(e):
                 # Force a fresh Robinhood login on the next live order.
                 robinhood._ensure_login._logged_in = False
             print("Retrying in 60 seconds...", file=sys.stderr)

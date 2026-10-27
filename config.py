@@ -1,8 +1,8 @@
 """Bot settings, read from config.json.
 
-config.json holds what the bot trades (symbol, moving-average periods, trade
-size, paper/live mode). Credentials never go here -- they live in .env (see
-.env.example).
+config.json holds what the bot trades (symbols, moving-average periods, dollars
+per trade, paper/live mode). Credentials never go here -- they live in .env
+(see .env.example).
 """
 
 import json
@@ -13,10 +13,10 @@ SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 CONFIG_PATH = os.path.join(SCRIPT_DIR, "config.json")
 
 DEFAULTS = {
-    "symbol": "AAPL",
+    "symbols": ["AAPL"],
     "short_window": 20,
     "long_window": 50,
-    "trade_quantity": 1,
+    "trade_dollars": 100.0,
     "lookback_days": 100,
     "mode": "paper",
     "check_interval_minutes": 15,
@@ -24,15 +24,18 @@ DEFAULTS = {
 }
 
 MODES = ("paper", "live")
+MAX_SYMBOLS = 25
+# Robinhood's smallest fractional (dollar-based) order.
+MIN_TRADE_DOLLARS = 1.0
 
 # Fields the trader panel is allowed to change. "mode" is deliberately left
 # out: switching to live (real-money) trading requires editing config.json by
 # hand and restarting the bot.
 EDITABLE_FIELDS = (
-    "symbol",
+    "symbols",
     "short_window",
     "long_window",
-    "trade_quantity",
+    "trade_dollars",
     "lookback_days",
     "check_interval_minutes",
 )
@@ -50,14 +53,38 @@ def _as_int(cfg, key, minimum):
     return value
 
 
+def _clean_symbols(value):
+    if isinstance(value, str):
+        value = value.split(",")
+    if not isinstance(value, list):
+        raise ValueError("symbols must be a list of stock symbols")
+    symbols = []
+    for raw in value:
+        symbol = str(raw).strip().upper()
+        if not symbol:
+            continue
+        if not _SYMBOL_RE.match(symbol):
+            raise ValueError(f"Invalid stock symbol: {raw!r}")
+        if symbol not in symbols:
+            symbols.append(symbol)
+    if not symbols:
+        raise ValueError("symbols must list at least one stock")
+    if len(symbols) > MAX_SYMBOLS:
+        raise ValueError(f"symbols can list at most {MAX_SYMBOLS} stocks")
+    return symbols
+
+
 def validate(raw):
     """Return a normalised copy of the config, or raise ValueError."""
+    raw = dict(raw)
+    # Older configs traded a single "symbol" in whole shares.
+    if "symbols" not in raw and "symbol" in raw:
+        raw["symbols"] = [raw["symbol"]]
+    raw.pop("symbol", None)
+    raw.pop("trade_quantity", None)
     cfg = {**DEFAULTS, **raw}
 
-    symbol = str(cfg["symbol"]).strip().upper()
-    if not _SYMBOL_RE.match(symbol):
-        raise ValueError(f"Invalid stock symbol: {cfg['symbol']!r}")
-    cfg["symbol"] = symbol
+    cfg["symbols"] = _clean_symbols(cfg["symbols"])
 
     cfg["short_window"] = _as_int(cfg, "short_window", 1)
     cfg["long_window"] = _as_int(cfg, "long_window", 2)
@@ -72,7 +99,13 @@ def validate(raw):
             f"lookback_days must be at least long_window + 1 ({cfg['long_window'] + 1})"
         )
 
-    cfg["trade_quantity"] = _as_int(cfg, "trade_quantity", 1)
+    try:
+        cfg["trade_dollars"] = round(float(cfg["trade_dollars"]), 2)
+    except (TypeError, ValueError):
+        raise ValueError("trade_dollars must be a number")
+    if cfg["trade_dollars"] < MIN_TRADE_DOLLARS:
+        raise ValueError(f"trade_dollars must be at least ${MIN_TRADE_DOLLARS:.2f}")
+
     cfg["check_interval_minutes"] = _as_int(cfg, "check_interval_minutes", 1)
 
     mode = str(cfg["mode"]).strip().lower()
