@@ -23,6 +23,12 @@ cd trader-panel && npm install
 
 ### `config.json`: what to trade
 
+`config.json` is per-machine and git-ignored, as is everything in `state/`
+(positions, paper balance, heartbeat) and `trade_ledger.csv`, so `git pull`
+never overwrites a server's settings or trades. Until `config.json` exists the
+bot reads `config.example.json`; the first save from the panel creates it, or
+copy the template yourself (`cp config.example.json config.json`).
+
 ```json
 {
   "symbols": ["AAPL"],

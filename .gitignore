@@ -2,8 +2,11 @@
 robinhood.pickle
 __pycache__/
 *.pyc
-state/heartbeat.json
 archive/*.bak.csv
-state/status.json
 *.log
 venv/
+
+# Per-machine settings and bot state (config.example.json is the template)
+config.json
+state/
+trade_ledger.csv

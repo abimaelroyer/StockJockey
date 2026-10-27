@@ -11,6 +11,9 @@ import re
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 CONFIG_PATH = os.path.join(SCRIPT_DIR, "config.json")
+# config.json is per-machine and git-ignored, so pulls never overwrite a
+# server's settings. Until it exists, settings come from the tracked template.
+EXAMPLE_CONFIG_PATH = os.path.join(SCRIPT_DIR, "config.example.json")
 
 DEFAULTS = {
     "symbols": ["AAPL"],
@@ -122,11 +125,12 @@ def validate(raw):
 
 
 def _read_raw():
-    if not os.path.exists(CONFIG_PATH):
-        return {}
-    with open(CONFIG_PATH) as f:
-        data = json.load(f)
-    return data if isinstance(data, dict) else {}
+    for path in (CONFIG_PATH, EXAMPLE_CONFIG_PATH):
+        if os.path.exists(path):
+            with open(path) as f:
+                data = json.load(f)
+            return data if isinstance(data, dict) else {}
+    return {}
 
 
 def load_config():

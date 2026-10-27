@@ -93,6 +93,21 @@ class ConfigTests(unittest.TestCase):
         self.assertNotIn("symbol", cfg)
         self.assertNotIn("trade_quantity", cfg)
 
+    def test_falls_back_to_example_until_config_exists(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            example = os.path.join(tmp, "config.example.json")
+            local = os.path.join(tmp, "config.json")
+            with open(example, "w") as f:
+                f.write('{"symbols": ["SPY"], "trade_dollars": 25}')
+            with mock.patch.object(config, "CONFIG_PATH", local), \
+                 mock.patch.object(config, "EXAMPLE_CONFIG_PATH", example):
+                self.assertEqual(config.load_config()["symbols"], ["SPY"])
+                config.update_config({"trade_dollars": 30})
+                self.assertTrue(os.path.exists(local))
+                self.assertEqual(config.load_config()["trade_dollars"], 30.0)
+                with open(example) as f:
+                    self.assertIn("25", f.read())  # template untouched
+
     def test_rejects_bad_values(self):
         for bad in ({"short_window": 50, "long_window": 20},
                     {"long_window": 120, "lookback_days": 100},
