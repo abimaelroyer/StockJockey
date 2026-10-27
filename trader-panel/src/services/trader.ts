@@ -1,8 +1,11 @@
 import axios from "axios";
 
+// When the panel is served from the droplet, nginx adds the API key itself,
+// so production builds leave VITE_PANEL_KEY empty and send no key.
+const panelKey = import.meta.env.VITE_PANEL_KEY;
 const api = axios.create({
     baseURL: import.meta.env.VITE_TRADER_URL,
-    headers: { "X-API-Key": import.meta.env.VITE_PANEL_KEY },
+    headers: panelKey ? { "X-API-Key": panelKey } : {},
 });
 
 export type Mode = "paper" | "live";

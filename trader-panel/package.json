@@ -7,7 +7,8 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "deploy": "npm run build && tar -C dist -cf - . | ssh root@159.223.160.191 \"rm -rf /var/www/stockjockey/* && tar --no-same-owner -C /var/www/stockjockey -xf -\""
   },
   "dependencies": {
     "axios": "^1.20.0",

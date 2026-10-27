@@ -4,8 +4,9 @@
 // Add to a DAILY chart of the symbol in config.json. Use it to:
 //   * see the 20/50 crossovers on TradingView and backtest them in the
 //     Strategy Tester (TradingView's own paper results), and
-//   * optionally fire webhook alerts to the bot's /webhook/tradingview
-//     endpoint, which then trades on paper or on Robinhood per config.json.
+//   * optionally fire webhook alerts to the bot at
+//     https://159-223-160-191.sslip.io/api/webhook/tradingview, which then
+//     trades on paper or on Robinhood per config.json.
 //
 // Alert message to paste in TradingView (Create Alert -> Message):
 //   {"secret": "YOUR_TRADINGVIEW_WEBHOOK_SECRET", "symbol": "{{ticker}}", "action": "{{strategy.order.action}}", "price": {{close}}}

@@ -59,6 +59,24 @@ python run_both.py            # strategy loop + API on :5000
 cd trader-panel && npm run dev
 ```
 
+### Hosted panel (DigitalOcean droplet)
+
+The droplet serves the panel at **https://159-223-160-191.sslip.io** behind a
+username/password. nginx proxies `/api/*` to the API, which listens on
+127.0.0.1 only, and adds the API key itself, so the key isn't in the
+browser bundle. `deploy/setup_droplet.sh` sets all of this up (re-runnable):
+
+```bash
+ssh root@159.223.160.191 'bash -s' -- 159.223.160.191 < deploy/setup_droplet.sh
+```
+
+- Add or change a login on the droplet: `htpasswd /etc/nginx/stockjockey.htpasswd <username>`
+- Publish panel changes from this machine: `cd trader-panel && npm run deploy`
+- Restart the bot on the droplet: `systemctl restart stockjockey-strategy stockjockey-api`
+
+Because the API is no longer public, `npm run dev` only works against a
+local API (`python api.py`), not the droplet.
+
 The loop checks every `check_interval_minutes` while the market is open and
 idles when it's closed. It acts only on **completed** daily bars. Today's
 still-moving bar is ignored until the close, so a half-finished day can't
@@ -78,8 +96,9 @@ simulated by this bot, and TradingView is used two ways:
    strategy in Pine Script. Add it to a daily chart to see and backtest the
    crossovers in TradingView's Strategy Tester. To have TradingView trigger
    trades, create an alert on the strategy with:
-   - **Webhook URL:** `https://<your-server>/webhook/tradingview` (TradingView
-     only posts to ports 80/443 and needs a paid plan)
+   - **Webhook URL:** `https://159-223-160-191.sslip.io/api/webhook/tradingview`
+     (needs a paid TradingView plan; this route skips the panel login and
+     checks the secret instead)
    - **Message:**
      ```json
      {"secret": "<TRADINGVIEW_WEBHOOK_SECRET>", "symbol": "{{ticker}}", "action": "{{strategy.order.action}}", "price": {{close}}}

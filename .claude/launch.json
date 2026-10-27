@@ -8,6 +8,12 @@
       "port": 5000
     },
     {
+      "name": "panel",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "trader-panel", "run", "dev", "--", "--port", "5174", "--strictPort"],
+      "port": 5174
+    },
+    {
       "name": "panel-dev",
       "runtimeExecutable": "powershell",
       "runtimeArgs": ["-NoProfile", "-Command", "cd trader-panel; $env:VITE_TRADER_URL='http://localhost:5000'; npx vite --port 5173 --strictPort"],
