@@ -2,9 +2,9 @@
   "symbols": ["AAPL"],
   "short_window": 20,
   "long_window": 50,
-  "trade_dollars": 100.0,
+  "trade_dollars": 20.0,
   "lookback_days": 100,
   "mode": "paper",
   "check_interval_minutes": 15,
-  "paper_starting_balance": 1000.0
+  "paper_starting_balance": 100.0
 }
