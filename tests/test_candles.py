@@ -201,5 +201,17 @@ class CandlestickCycleTests(unittest.TestCase):
         self.assertTrue(rows["HAM"]["pattern"].startswith("stop loss"))
 
 
+    def test_buy_skipped_when_price_already_below_stop(self):
+        reversal = [(101.0, 101.1, 99.4, 99.5), (99.5, 99.6, 98.8, 99.0), (99.0, 100.7, 98.9, 100.6)]
+        data = bars(BASE + reversal + [(98.0, 98.2, 97.5, 97.8)])  # today's live bar gapped down
+        with mock.patch.object(strategy, "market_is_open", return_value=True), \
+             mock.patch.object(strategy, "market_now",
+                               return_value=datetime.datetime(2026, 10, 26, 11, 0, tzinfo=strategy.MARKET_TZ)):
+            data.index = list(data.index[:-1]) + [datetime.date(2026, 10, 26)]
+            rows, execute = self.run_with(data, {"status": "filled", "trade": {}})
+        execute.assert_not_called()
+        self.assertEqual(rows["HAM"]["last_crossover"]["result"], "skipped")
+
+
 if __name__ == "__main__":
     unittest.main()

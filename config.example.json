@@ -1,6 +1,6 @@
 {
   "strategy": "candlestick",
-  "symbols": ["AAPL"],
+  "symbols": ["SPY", "QQQ", "TSLA", "NVDA", "AMD", "MSFT", "AMZN", "AAPL", "META", "PLTR"],
   "short_window": 20,
   "long_window": 50,
   "trade_dollars": 20.0,

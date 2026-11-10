@@ -279,11 +279,16 @@ def check_symbol_candles(cfg, symbol, signal_state):
     if signal and last_handled.get("date") == bar_date and last_handled.get("action") == signal:
         print(f"{symbol}: {signal} on {bar_date} already handled.")
     elif signal:
-        result = brokers.execute_signal(
-            cfg, signal, symbol, latest_price, source="bot",
-            short_ma=_round(frame.close.rolling(cfg["short_window"]).mean().iloc[-1]),
-            long_ma=_round(last.trend_ma), note=decision["reason"],
-        )
+        if signal == "BUY" and latest_price <= decision["stop"]:
+            # Price opened below the pattern's stop: the setup already failed.
+            result = {"status": "skipped",
+                      "reason": f"price {latest_price:.2f} is already at/below the stop {decision['stop']:.2f}"}
+        else:
+            result = brokers.execute_signal(
+                cfg, signal, symbol, latest_price, source="bot",
+                short_ma=_round(frame.close.rolling(cfg["short_window"]).mean().iloc[-1]),
+                long_ma=_round(last.trend_ma), note=decision["reason"],
+            )
         if result["status"] == "skipped":
             print(f"{symbol}: order skipped: {result['reason']}")
         if signal == "BUY" and result["status"] == "filled":
