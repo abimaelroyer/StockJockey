@@ -263,7 +263,9 @@ def check_symbol_candles(cfg, symbol, signal_state):
     holding = symbol in brokers.load_positions()
 
     if holding:
-        decision = candles.find_exit(frame, plans.get(symbol))
+        # The live price is checked against the stop and target too, so they
+        # trigger during the day the way a broker's stop/limit order would.
+        decision = candles.find_exit(frame, plans.get(symbol), latest_price)
     else:
         decision = candles.find_entry(frame, cfg["reward_risk"])
     signal = decision["action"] if decision else None

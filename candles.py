@@ -1,43 +1,52 @@
 """Candlestick pattern strategy.
 
-Built from the patterns in "The BEST Candlestick Pattern Guide You'll EVER
-FIND" (Data Trader): engulfing candles, pin bars, breakout candles and
-shrinking candles, traded only where they matter -- at a support/resistance
-level or a pullback to the trend -- which is the video's "advanced strategy":
-a pattern on its own is noise, a pattern at a level is a trade.
+Built from Data Trader's video "The BEST Candlestick Pattern Guide You'll EVER
+FIND". It uses his six patterns, his stop for each one, and his "advanced
+strategy": only take a pattern where it lines up with a key level, and aim for
+a profit target twice the size of the stop.
 
 Everything here is a pure function of a DataFrame of daily bars with columns
-open/high/low/close, oldest first, so it can be tested without a network or
-a broker. strategy.py fetches the bars and places the orders.
+open/high/low/close, oldest first, so it can be tested without a network or a
+broker. strategy.py fetches the bars and places the orders.
 
 How a day is read, step by step:
 
-  1. add_context() measures each candle (body, wicks) and the backdrop it
-     formed against: the average candle size, the recent support (lowest low)
-     and resistance (highest high), and the trend moving average.
-  2. find_entry() looks for a BUY on the newest completed candle:
-       - a bullish REVERSAL pattern (engulfing, hammer pin bar, or shrinking
-         red candles followed by a green one) at support or on a pullback to
-         the rising trend average, or
-       - a bullish BREAKOUT candle closing above resistance in an uptrend.
-     A BUY comes with a stop (the pattern's low) and a target
-     (reward_risk times the risk above the entry).
-  3. find_exit() decides when to SELL a position: the stop is hit, the target
-     is hit, a bearish reversal pattern forms at resistance, or a bearish
-     breakout candle closes below support.
+  1. add_context() measures each candle (body, wicks) and what it formed
+     against: the average candle size, recent support (lowest low) and
+     resistance (highest high), and the trend moving average.
+  2. Each pattern function looks at the newest candles and returns the STOP
+     price the video gives for that pattern, or None if the pattern isn't there.
+     Every pattern takes a `side`: "bull" (buyers taking over) or "bear"
+     (sellers taking over), so one function covers both versions.
+  3. find_entry() takes a BUY when:
+       - a REVERSAL pattern (three-bar reversal, engulfing, shrinking candles,
+         pin bar) forms at support or on a pullback to the rising trend
+         average, or
+       - a CONTINUATION pattern (three-bar continuation, breakout candle) forms
+         while price is above the trend average.
+     Entry is the pattern's close, the target is reward_risk x the risk.
+  4. find_exit() sells when price reaches the stop or the target, or a bearish
+     reversal forms at resistance, or a bearish breakout candle forms.
 """
 
 import pandas as pd
 
-# A pin bar's long wick must be at least this many times its body, and take up
-# at least this share of the whole candle.
+# "Large" candle = body bigger than the average body of the last few weeks.
+LARGE_BODY = 1.0
+# Breakout candle = body at least this many times the average.
+BREAKOUT_BODY = 1.5
+# "Nearly full body" = the body is at least this share of the whole candle.
+FULL_BODY_SHARE = 0.6
+# Pin bar = the long wick is at least 2x the body and most of the candle.
 PIN_WICK_TO_BODY = 2.0
 PIN_WICK_SHARE = 0.6
-# A breakout candle's body must be this many times the average body.
-BREAKOUT_BODY_MULTIPLE = 1.5
-# How many shrinking candles in a row signal that a move is running out of steam.
+# Three-bar continuation: the middle candle is at most half the first one.
+CONTINUATION_PULLBACK = 0.5
+# Breakout needs at least this many small "consolidation" candles before it.
+CONSOLIDATION_CANDLES = 3
+# Shrinking candles needs at least this many candles getting smaller.
 SHRINKING_RUN = 3
-# "At a level" means within this many average candle ranges of it.
+# "At a level" = within this many average candle ranges of it.
 LEVEL_TOLERANCE = 1.0
 
 
@@ -50,8 +59,7 @@ def add_context(bars, level_window, trend_window):
     """Return a copy of `bars` with the columns the patterns need.
 
     The averages, support and resistance are shifted by one day, so a candle
-    is always compared with the days BEFORE it -- a breakout candle can't be
-    measured against a resistance level it created itself.
+    is always compared with the days BEFORE it.
     """
     f = bars[["open", "high", "low", "close"]].astype(float).copy()
     f["body"] = (f.close - f.open).abs()
@@ -70,94 +78,182 @@ def add_context(bars, level_window, trend_window):
 
 
 # ---------------------------------------------------------------------------
-# Step 2: the patterns. Each takes candles (rows of the frame) and answers
-# True/False, so each one can be read and tested on its own.
+# Small helpers so each pattern reads like the video describes it
 # ---------------------------------------------------------------------------
 
 
-def bullish_engulfing(prev, cur):
-    """A red candle swallowed by a bigger green one: buyers overpowered sellers."""
-    return (bool(prev.red) and bool(cur.green)
-            and cur.open <= prev.close and cur.close >= prev.open
-            and cur.body > prev.body)
+def _with(c, side):
+    """Is candle `c` the color of `side`? (green for bull, red for bear)"""
+    return bool(c.green) if side == "bull" else bool(c.red)
 
 
-def bearish_engulfing(prev, cur):
-    """A green candle swallowed by a bigger red one: sellers took over."""
-    return (bool(prev.green) and bool(cur.red)
-            and cur.open >= prev.close and cur.close <= prev.open
-            and cur.body > prev.body)
+def _against(c, side):
+    """Is candle `c` the opposite color?"""
+    return bool(c.red) if side == "bull" else bool(c.green)
 
 
-def bullish_pin_bar(cur):
-    """Hammer: a long lower wick. Price was pushed down and rejected."""
-    return (cur.range > 0
-            and cur.lower_wick >= PIN_WICK_TO_BODY * cur.body
-            and cur.lower_wick >= PIN_WICK_SHARE * cur.range)
+def _beyond(price, than, side):
+    """Is `price` past `than` in the direction of `side`? (above for bull)"""
+    return price > than if side == "bull" else price < than
 
 
-def bearish_pin_bar(cur):
-    """Shooting star: a long upper wick. Price was pushed up and rejected."""
-    return (cur.range > 0
-            and cur.upper_wick >= PIN_WICK_TO_BODY * cur.body
-            and cur.upper_wick >= PIN_WICK_SHARE * cur.range)
+def _stop_end(c, side):
+    """The wick end a stop goes behind: the low for a buy, the high for a sell."""
+    return c.low if side == "bull" else c.high
 
 
-def bullish_breakout(cur):
-    """A big green candle closing above resistance: buyers broke the level."""
-    return (bool(cur.green)
-            and cur.close > cur.resistance
-            and cur.body >= BREAKOUT_BODY_MULTIPLE * cur.avg_body)
+def _large(c):
+    return c.body > LARGE_BODY * c.avg_body
 
 
-def bearish_breakout(cur):
-    """A big red candle closing below support: sellers broke the level."""
-    return (bool(cur.red)
-            and cur.close < cur.support
-            and cur.body >= BREAKOUT_BODY_MULTIPLE * cur.avg_body)
+def _full(c):
+    return c.range > 0 and c.body >= FULL_BODY_SHARE * c.range
 
 
-def _shrinking(candles, color):
-    """True when every candle is `color` and each body is smaller than the last."""
-    bodies = list(candles.body)
-    return (all(candles[color])
-            and all(later < earlier for earlier, later in zip(bodies, bodies[1:])))
-
-
-def bullish_shrinking_reversal(frame):
-    """Red candles getting smaller (selling is drying up), then a green candle
-    that closes above the previous candle's high (buyers step in)."""
-    if len(frame) < SHRINKING_RUN + 1:
-        return False
-    run, cur = frame.iloc[-SHRINKING_RUN - 1:-1], frame.iloc[-1]
-    return _shrinking(run, "red") and bool(cur.green) and cur.close > run.high.iloc[-1]
-
-
-def bearish_shrinking_reversal(frame):
-    """Green candles getting smaller (buying is drying up), then a red candle
-    that closes below the previous candle's low (sellers step in)."""
-    if len(frame) < SHRINKING_RUN + 1:
-        return False
-    run, cur = frame.iloc[-SHRINKING_RUN - 1:-1], frame.iloc[-1]
-    return _shrinking(run, "green") and bool(cur.red) and cur.close < run.low.iloc[-1]
+def _last(frame, n):
+    return [frame.iloc[i] for i in range(-n, 0)] if len(frame) >= n else None
 
 
 # ---------------------------------------------------------------------------
-# Step 3: where the pattern formed
+# Step 2: the six patterns. Each returns the stop price, or None.
 # ---------------------------------------------------------------------------
 
 
-def at_support(cur):
-    return cur.low <= cur.support + LEVEL_TOLERANCE * cur.avg_range
+def engulfing(frame, side):
+    """#1 Engulfing: a small candle, then a bigger candle of the other color
+    whose body fully covers the first body. Stop: the big candle's wick end."""
+    candles = _last(frame, 2)
+    if not candles:
+        return None
+    first, second = candles
+    covers = (max(second.open, second.close) >= max(first.open, first.close)
+              and min(second.open, second.close) <= min(first.open, first.close))
+    if _against(first, side) and _with(second, side) and covers and second.body > first.body:
+        return _stop_end(second, side)
+    return None
 
 
-def at_resistance(cur):
-    return cur.high >= cur.resistance - LEVEL_TOLERANCE * cur.avg_range
+def _pin_bar(c, side):
+    wick = c.lower_wick if side == "bull" else c.upper_wick
+    return (_with(c, side) and c.range > 0
+            and wick >= PIN_WICK_TO_BODY * c.body
+            and wick >= PIN_WICK_SHARE * c.range)
 
 
-def pullback_to_trend(cur):
-    """In an uptrend (close above the trend average), the candle dipped to it."""
-    return cur.close > cur.trend_ma and cur.low <= cur.trend_ma + LEVEL_TOLERANCE * cur.avg_range
+def confirmed_pin_bar(frame, side):
+    """#2 Pin bar: a small body with a long wick on one side (green with a long
+    lower wick for bull). The video waits for one more candle of the same color
+    to confirm. Stop: the end of the pin bar's wick."""
+    candles = _last(frame, 2)
+    if not candles:
+        return None
+    pin, confirm = candles
+    if _pin_bar(pin, side) and _with(confirm, side):
+        return _stop_end(pin, side)
+    return None
+
+
+def three_bar_continuation(frame, side):
+    """#3 Three-bar continuation: a large candle, a small opposite candle at
+    most half its body, then another large candle closing past the second
+    one's close. Stop: the second candle's wick end."""
+    candles = _last(frame, 3)
+    if not candles:
+        return None
+    c1, c2, c3 = candles
+    if (_with(c1, side) and _large(c1)
+            and _against(c2, side) and c2.body <= CONTINUATION_PULLBACK * c1.body
+            and _with(c3, side) and _large(c3) and _beyond(c3.close, c2.close, side)):
+        return _stop_end(c2, side)
+    return None
+
+
+def three_bar_reversal(frame, side):
+    """#4 Three-bar reversal: a large, nearly full-bodied candle, a smaller
+    candle of the same color, then a full-bodied candle of the other color at
+    least as big as the first (the video's "strong" version). Stop: the second
+    candle's wick end."""
+    candles = _last(frame, 3)
+    if not candles:
+        return None
+    c1, c2, c3 = candles
+    if (_against(c1, side) and _large(c1) and _full(c1)
+            and _against(c2, side) and c2.body < c1.body
+            and _with(c3, side) and _full(c3) and c3.body >= c1.body):
+        return _stop_end(c2, side)
+    return None
+
+
+def breakout_candle(frame, side):
+    """#5 Breakout: at least three small "consolidation" candles (any color),
+    then one large candle. Stop: the breakout candle's open."""
+    candles = _last(frame, CONSOLIDATION_CANDLES + 1)
+    if not candles:
+        return None
+    *quiet, breakout = candles
+    if (all(c.body < breakout.avg_body for c in quiet)
+            and _with(breakout, side) and breakout.body >= BREAKOUT_BODY * breakout.avg_body):
+        return breakout.open
+    return None
+
+
+def shrinking_candles(frame, side):
+    """#6 Shrinking candles: three candles of one color each smaller than the
+    last (the move is running out of steam), then a large candle of the other
+    color closing past the second shrinking candle. Stop: the previous
+    candle's wick end."""
+    candles = _last(frame, SHRINKING_RUN + 1)
+    if not candles:
+        return None
+    *run, turn = candles
+    bodies = [c.body for c in run]
+    shrinking = (all(_against(c, side) for c in run)
+                 and all(later < earlier for earlier, later in zip(bodies, bodies[1:])))
+    past_second = _beyond(turn.close, run[1].high if side == "bull" else run[1].low, side)
+    if shrinking and _with(turn, side) and _large(turn) and past_second:
+        return _stop_end(run[-1], side)
+    return None
+
+
+REVERSAL_PATTERNS = [
+    ("three-bar reversal", three_bar_reversal),
+    ("engulfing", engulfing),
+    ("shrinking candles", shrinking_candles),
+    ("pin bar", confirmed_pin_bar),
+]
+CONTINUATION_PATTERNS = [
+    ("three-bar continuation", three_bar_continuation),
+    ("breakout candle", breakout_candle),
+]
+
+
+# ---------------------------------------------------------------------------
+# Step 3: key levels (the video's "advanced strategy")
+# ---------------------------------------------------------------------------
+
+
+def at_support(frame):
+    """Did any of the last 3 candles reach the recent support?"""
+    cur = frame.iloc[-1]
+    return frame.low.iloc[-3:].min() <= cur.support + LEVEL_TOLERANCE * cur.avg_range
+
+
+def at_resistance(frame):
+    cur = frame.iloc[-1]
+    return frame.high.iloc[-3:].max() >= cur.resistance - LEVEL_TOLERANCE * cur.avg_range
+
+
+def pullback_to_trend(frame):
+    """Uptrend (close above the trend average), and price dipped to it: the
+    average acts as a moving ("dynamic") support level."""
+    cur = frame.iloc[-1]
+    return (cur.close > cur.trend_ma
+            and frame.low.iloc[-3:].min() <= cur.trend_ma + LEVEL_TOLERANCE * cur.avg_range)
+
+
+def uptrend(frame):
+    cur = frame.iloc[-1]
+    return cur.close > cur.trend_ma
 
 
 # ---------------------------------------------------------------------------
@@ -165,8 +261,8 @@ def pullback_to_trend(cur):
 # ---------------------------------------------------------------------------
 
 
-def _ready(frame, rows):
-    if len(frame) < rows:
+def _ready(frame):
+    if len(frame) < SHRINKING_RUN + 1:
         return False
     needed = ["avg_body", "avg_range", "support", "resistance", "trend_ma"]
     return not frame.iloc[-1][needed].isna().any()
@@ -175,79 +271,85 @@ def _ready(frame, rows):
 def find_entry(frame, reward_risk):
     """Return a BUY plan for the newest candle, or None.
 
-    The plan is {"action", "pattern", "level", "entry", "stop", "target", "reason"}.
+    The plan is {"action", "pattern", "level", "entry", "stop", "target",
+    "reason", "price"}.
     """
-    if not _ready(frame, SHRINKING_RUN + 1):
+    if not _ready(frame):
         return None
-    prev, cur = frame.iloc[-2], frame.iloc[-1]
 
-    # Where is this candle? Reversal patterns only count at one of these.
-    if at_support(cur):
-        level = "support"
-    elif pullback_to_trend(cur):
-        level = "trend average"
-    else:
-        level = None
+    candidates = []
+    if at_support(frame):
+        candidates += [(name, fn, "support") for name, fn in REVERSAL_PATTERNS]
+    elif pullback_to_trend(frame):
+        candidates += [(name, fn, "trend average") for name, fn in REVERSAL_PATTERNS]
+    if uptrend(frame):
+        candidates += [(name, fn, "uptrend") for name, fn in CONTINUATION_PATTERNS]
 
-    pattern, stop = None, None
-    if level and bullish_engulfing(prev, cur):
-        pattern, stop = "bullish engulfing", min(prev.low, cur.low)
-    elif level and bullish_pin_bar(cur):
-        pattern, stop = "hammer pin bar", cur.low
-    elif level and bullish_shrinking_reversal(frame):
-        pattern, stop = "shrinking candles reversal", frame.low.iloc[-SHRINKING_RUN - 1:].min()
-    elif bullish_breakout(cur) and cur.close > cur.trend_ma:
-        pattern, level, stop = "breakout candle", "resistance", cur.low
-
-    if pattern is None:
-        return None
-    entry = float(cur.close)
-    risk = entry - float(stop)
-    if risk <= 0:
-        return None
-    return {
-        "action": "BUY",
-        "pattern": pattern,
-        "level": level,
-        "entry": round(entry, 4),
-        "stop": round(float(stop), 4),
-        "target": round(entry + reward_risk * risk, 4),
-        "reason": f"{pattern} at {level}",
-    }
+    entry = float(frame.close.iloc[-1])
+    for name, pattern, level in candidates:
+        stop = pattern(frame, "bull")
+        if stop is None or entry - stop <= 0:
+            continue
+        risk = entry - float(stop)
+        return {
+            "action": "BUY",
+            "pattern": name,
+            "level": level,
+            "entry": round(entry, 4),
+            "stop": round(float(stop), 4),
+            "target": round(entry + reward_risk * risk, 4),
+            "reason": f"bullish {name} at {level}" if level != "uptrend" else f"bullish {name} in uptrend",
+            "price": entry,
+        }
+    return None
 
 
-def find_exit(frame, plan=None):
+def find_exit(frame, plan=None, latest_price=None):
     """Return a SELL decision for a held position, or None.
 
-    `plan` is the stored BUY plan (stop/target). Without one -- e.g. a position
-    opened by a TradingView alert -- only the bearish patterns can close it.
+    `plan` is the saved BUY plan (stop, target, and the date it was bought).
+    The stop and target count as hit when:
+      - a completed candle AFTER the buy day reached them, or
+      - `latest_price` (the live quote during the day) has reached them.
+    Without a plan (a position opened by a TradingView alert) only the bearish
+    patterns can close it.
     """
-    if not _ready(frame, SHRINKING_RUN + 1):
+    if not _ready(frame):
         return None
-    prev, cur = frame.iloc[-2], frame.iloc[-1]
+    cur = frame.iloc[-1]
+    stop = plan.get("stop") if plan else None
+    target = plan.get("target") if plan else None
+    after_buy = plan and frame.index[-1].isoformat() > str(plan.get("date", ""))
 
-    if plan and plan.get("stop") is not None and cur.close <= plan["stop"]:
-        reason = f"stop loss: closed at {cur.close:.2f}, stop {plan['stop']:.2f}"
-    elif plan and plan.get("target") is not None and cur.close >= plan["target"]:
-        reason = f"take profit: closed at {cur.close:.2f}, target {plan['target']:.2f}"
-    elif at_resistance(cur) and bearish_engulfing(prev, cur):
-        reason = "bearish engulfing at resistance"
-    elif at_resistance(cur) and bearish_pin_bar(cur):
-        reason = "shooting star pin bar at resistance"
-    elif at_resistance(cur) and bearish_shrinking_reversal(frame):
-        reason = "shrinking candles reversal at resistance"
-    elif bearish_breakout(cur):
-        reason = "breakdown candle below support"
-    else:
-        return None
-    return {"action": "SELL", "pattern": reason.split(":")[0], "reason": reason}
+    def sell(reason, price):
+        return {"action": "SELL", "pattern": reason.split(":")[0], "reason": reason,
+                "price": float(price)}
+
+    if stop is not None:
+        if latest_price is not None and latest_price <= stop:
+            return sell(f"stop loss: price {latest_price:.2f} reached stop {stop:.2f}", latest_price)
+        if after_buy and cur.low <= stop:
+            return sell(f"stop loss: low {cur.low:.2f} reached stop {stop:.2f}", min(cur.open, stop))
+    if target is not None:
+        if latest_price is not None and latest_price >= target:
+            return sell(f"take profit: price {latest_price:.2f} reached target {target:.2f}", latest_price)
+        if after_buy and cur.high >= target:
+            return sell(f"take profit: high {cur.high:.2f} reached target {target:.2f}", max(cur.open, target))
+
+    if at_resistance(frame):
+        for name, pattern in REVERSAL_PATTERNS:
+            if pattern(frame, "bear") is not None:
+                return sell(f"bearish {name} at resistance", cur.close)
+    if breakout_candle(frame, "bear") is not None:
+        return sell("bearish breakout candle", cur.close)
+    return None
 
 
 def backtest(bars, level_window=20, trend_window=50, reward_risk=2.0):
     """Replay the rules one day at a time and list the trades they'd make.
 
-    Useful to see how often the strategy fires on a symbol before trading it.
-    Returns a list of {"date", "action", "price", "reason"} rows.
+    Returns a list of {"date", "action", "price", "reason"} rows. Stops and
+    targets fill at their own price (or the open, if price gapped past them).
     """
     frame = add_context(bars, level_window, trend_window)
     trades, plan = [], None
@@ -255,7 +357,8 @@ def backtest(bars, level_window=20, trend_window=50, reward_risk=2.0):
         upto = frame.iloc[: i + 1]
         decision = find_exit(upto, plan) if plan else find_entry(upto, reward_risk)
         if decision:
-            trades.append({"date": frame.index[i], "action": decision["action"],
-                           "price": float(upto.close.iloc[-1]), "reason": decision["reason"]})
-            plan = decision if decision["action"] == "BUY" else None
+            date = frame.index[i]
+            trades.append({"date": date, "action": decision["action"],
+                           "price": decision["price"], "reason": decision["reason"]})
+            plan = dict(decision, date=date.isoformat()) if decision["action"] == "BUY" else None
     return trades

@@ -29,22 +29,38 @@ running that day the signal is missed.
 
 ### Candlestick strategy
 
-Built from the patterns in Data Trader's video *The BEST Candlestick Pattern
-Guide You'll EVER FIND*. The rules live in `candles.py`. A pattern only
-counts where it forms:
+Built from Data Trader's video *The BEST Candlestick Pattern Guide You'll
+EVER FIND*: his six patterns, his stop for each one, and his "advanced
+strategy" of only trading a pattern at a key level, with a take-profit twice
+the size of the stop. The rules live in `candles.py`.
 
-| | BUY (when not holding) | SELL (when holding) |
+| # | Pattern (bullish version) | Stop |
 |---|---|---|
-| **Reversal** | bullish engulfing, hammer pin bar, or 3 shrinking red candles then a green close above the last high, **at support** (the lowest low of the last `short_window` days) **or on a pullback to the rising `long_window`-day average** | bearish engulfing, shooting-star pin bar, or 3 shrinking green candles then a red close below the last low, **at resistance** (the highest high of the last `short_window` days) |
-| **Breakout** | a green candle with a body 1.5× the average, closing **above resistance**, while price is above the trend average | a red candle with a body 1.5× the average, closing **below support** |
-| **Risk** | stop = the pattern's low, target = entry + `reward_risk` × (entry − stop) | sells when a daily close is at/below the stop or at/above the target |
+| 1 | **Engulfing**: a red candle, then a bigger green candle whose body fully covers it | low of the green candle |
+| 2 | **Pin bar**: green, small body, long lower wick, confirmed by the next candle closing green | low of the pin bar's wick |
+| 3 | **Three-bar continuation**: large green, small red (at most half its body), large green closing above the red's close | low of the middle candle |
+| 4 | **Three-bar reversal**: large full-bodied red, smaller red, full-bodied green at least as big as the first | low of the middle candle |
+| 5 | **Breakout candle**: 3+ small consolidation candles, then a green candle 1.5× the average body | breakout candle's open |
+| 6 | **Shrinking candles**: 3 red candles each smaller than the last, then a large green candle closing above the second one | low of the previous candle |
 
-"At a level" means within one average candle range of it. Stops and targets
-are saved in `state/trade_plans.json`. Like the crossover, it acts only on
-completed daily bars, and each signal is acted on once.
+**When it buys** (when not already holding):
+- A **reversal** pattern (1, 2, 4, 6) where one of the last 3 candles reached
+  **support** (the lowest low of the last `short_window` days) or dipped to the
+  rising **`long_window`-day average** (a moving "dynamic" key level).
+- A **continuation** pattern (3, 5) while price is above that average.
 
-On two years of AAPL daily bars (Nov 2024 to Nov 2026) the rules made 27 round
-trips, 15 winners, about +12% summed across trades, while simply holding
+Entry is the pattern's closing price. The target is entry + `reward_risk` ×
+(entry − stop), 2× by default as in the video.
+
+**When it sells**: the live price, or a later day's high/low, reaches the
+stop or the target; or a bearish reversal pattern forms at **resistance**
+(the highest high of the last `short_window` days); or a bearish breakout
+candle forms. "At a level" means within one average candle range of it.
+Stops and targets are saved in `state/trade_plans.json`. Patterns are read
+from completed daily bars only, and each signal is acted on once.
+
+On two years of AAPL daily bars (Nov 2024 to Nov 2026) the rules made 25 round
+trips, 12 winners, about +17% summed across trades, while simply holding
 AAPL gained about 52%. It trades far more often than the crossover, but
 that's not evidence it will be profitable; try it in paper mode first.
 `candles.backtest(bars)` replays the rules on any OHLC DataFrame.
