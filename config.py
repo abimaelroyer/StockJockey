@@ -1,6 +1,6 @@
 """Bot settings, read from config.json.
 
-config.json holds what the bot trades (symbols, moving-average periods, dollars
+config.json holds what the bot trades (strategy, symbols, indicator periods, dollars
 per trade, paper/live mode). Credentials never go here -- they live in .env
 (see .env.example).
 """
@@ -16,17 +16,23 @@ CONFIG_PATH = os.path.join(SCRIPT_DIR, "config.json")
 EXAMPLE_CONFIG_PATH = os.path.join(SCRIPT_DIR, "config.example.json")
 
 DEFAULTS = {
+    "strategy": "candlestick",
     "symbols": ["AAPL"],
     "short_window": 20,
     "long_window": 50,
     "trade_dollars": 100.0,
     "lookback_days": 100,
+    "reward_risk": 2.0,
     "mode": "paper",
     "check_interval_minutes": 15,
     "paper_starting_balance": 1000.0,
 }
 
 MODES = ("paper", "live")
+# "candlestick": engulfing / pin bar / breakout / shrinking-candle patterns at
+#   support, resistance or the trend average (candles.py).
+# "sma_crossover": the original short/long moving average crossover.
+STRATEGIES = ("candlestick", "sma_crossover")
 MAX_SYMBOLS = 25
 # Robinhood's smallest fractional (dollar-based) order.
 MIN_TRADE_DOLLARS = 1.0
@@ -35,11 +41,13 @@ MIN_TRADE_DOLLARS = 1.0
 # out: switching to live (real-money) trading requires editing config.json by
 # hand and restarting the bot.
 EDITABLE_FIELDS = (
+    "strategy",
     "symbols",
     "short_window",
     "long_window",
     "trade_dollars",
     "lookback_days",
+    "reward_risk",
     "check_interval_minutes",
 )
 
@@ -110,6 +118,18 @@ def validate(raw):
         raise ValueError(f"trade_dollars must be at least ${MIN_TRADE_DOLLARS:.2f}")
 
     cfg["check_interval_minutes"] = _as_int(cfg, "check_interval_minutes", 1)
+
+    strategy = str(cfg["strategy"]).strip().lower()
+    if strategy not in STRATEGIES:
+        raise ValueError(f"strategy must be one of {STRATEGIES}")
+    cfg["strategy"] = strategy
+
+    try:
+        cfg["reward_risk"] = round(float(cfg["reward_risk"]), 2)
+    except (TypeError, ValueError):
+        raise ValueError("reward_risk must be a number")
+    if cfg["reward_risk"] < 0.5:
+        raise ValueError("reward_risk must be at least 0.5")
 
     mode = str(cfg["mode"]).strip().lower()
     if mode not in MODES:

@@ -1,8 +1,17 @@
 # StockJockey
 
-A moving average crossover bot. It watches a list of stocks (AAPL by
-default), and when a stock's 20-day simple moving average crosses its 50-day
-between two consecutive days it places an order for that stock:
+A trading bot that watches a list of stocks (AAPL by default) on daily
+candles. `config.json`'s `strategy` picks the rules:
+
+- **`candlestick`** (default): candlestick patterns at key price levels. See
+  [Candlestick strategy](#candlestick-strategy).
+- **`sma_crossover`**: the original 20/50-day moving average crossover,
+  described next.
+
+### SMA crossover
+
+When a stock's 20-day simple moving average crosses its 50-day between two
+consecutive days it places an order for that stock:
 
 | Crossover | Meaning | Order |
 |---|---|---|
@@ -12,6 +21,49 @@ between two consecutive days it places an order for that stock:
 Price history (the last `lookback_days` daily bars) comes from **yfinance**.
 Orders go to **paper** (simulated) or **Robinhood** (live), and the
 **trader panel** shows a **TradingView** chart with both moving averages.
+
+Crossovers are rare: on AAPL there were 7 golden crosses in the two years to
+November 2026, and none between the 2026-09-15 cross and this writing. The
+bot also only acts on a crossover the day after it forms, so if it isn't
+running that day the signal is missed.
+
+### Candlestick strategy
+
+Built from Data Trader's video *The BEST Candlestick Pattern Guide You'll
+EVER FIND*: his six patterns, his stop for each one, and his "advanced
+strategy" of only trading a pattern at a key level, with a take-profit twice
+the size of the stop. The rules live in `candles.py`.
+
+| # | Pattern (bullish version) | Stop |
+|---|---|---|
+| 1 | **Engulfing**: a red candle, then a bigger green candle whose body fully covers it | low of the green candle |
+| 2 | **Pin bar**: green, small body, long lower wick, confirmed by the next candle closing green | low of the pin bar's wick |
+| 3 | **Three-bar continuation**: large green, small red (at most half its body), large green closing above the red's close | low of the middle candle |
+| 4 | **Three-bar reversal**: large full-bodied red, smaller red, full-bodied green at least as big as the first | low of the middle candle |
+| 5 | **Breakout candle**: 3+ small consolidation candles, then a green candle 1.5× the average body | breakout candle's open |
+| 6 | **Shrinking candles**: 3 red candles each smaller than the last, then a large green candle closing above the second one | low of the previous candle |
+
+**When it buys** (when not already holding):
+- A **reversal** pattern (1, 2, 4, 6) where one of the last 3 candles reached
+  **support** (the lowest low of the last `short_window` days) or dipped to the
+  rising **`long_window`-day average** (a moving "dynamic" key level).
+- A **continuation** pattern (3, 5) while price is above that average.
+
+Entry is the pattern's closing price. The target is entry + `reward_risk` ×
+(entry − stop), 2× by default as in the video.
+
+**When it sells**: the live price, or a later day's high/low, reaches the
+stop or the target; or a bearish reversal pattern forms at **resistance**
+(the highest high of the last `short_window` days); or a bearish breakout
+candle forms. "At a level" means within one average candle range of it.
+Stops and targets are saved in `state/trade_plans.json`. Patterns are read
+from completed daily bars only, and each signal is acted on once.
+
+On two years of AAPL daily bars (Nov 2024 to Nov 2026) the rules made 25 round
+trips, 12 winners, about +17% summed across trades, while simply holding
+AAPL gained about 52%. It trades far more often than the crossover, but
+that's not evidence it will be profitable; try it in paper mode first.
+`candles.backtest(bars)` replays the rules on any OHLC DataFrame.
 
 ## Setup
 
@@ -31,19 +83,28 @@ copy the template yourself (`cp config.example.json config.json`).
 
 ```json
 {
+  "strategy": "candlestick",
   "symbols": ["AAPL"],
   "short_window": 20,
   "long_window": 50,
   "trade_dollars": 100.0,
   "lookback_days": 100,
+  "reward_risk": 2.0,
   "mode": "paper",
   "check_interval_minutes": 15,
   "paper_starting_balance": 1000.0
 }
 ```
 
+- `strategy`: `"candlestick"` or `"sma_crossover"`.
+- `short_window` / `long_window`: the two moving averages for the crossover.
+  For the candlestick strategy, `short_window` is how many days back
+  support, resistance and the "average candle" look, and `long_window` is the
+  trend average.
+- `reward_risk`: candlestick profit target as a multiple of the risk to the
+  stop (2.0 = aim for twice what you risk).
 - `symbols`: every stock the bot watches (up to 25). Each one gets the same
-  crossover rules and is tracked separately, so the bot can hold several at
+  rules and is tracked separately, so the bot can hold several at
   once. A symbol yfinance doesn't recognise shows an error in the panel
   without stopping the others.
 - `trade_dollars`: how much each BUY spends, as fractional shares (minimum

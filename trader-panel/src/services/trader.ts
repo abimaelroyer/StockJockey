@@ -37,12 +37,16 @@ export interface Health {
     detail?: string | null;
 }
 
+export type StrategyName = "candlestick" | "sma_crossover";
+
 export interface Config {
+    strategy: StrategyName;
     symbols: string[];
     short_window: number;
     long_window: number;
     trade_dollars: number;
     lookback_days: number;
+    reward_risk: number;
     mode: Mode;
     check_interval_minutes: number;
     paper_starting_balance: number;
@@ -50,13 +54,21 @@ export interface Config {
 
 export type EditableConfig = Pick<
     Config,
-    "symbols" | "short_window" | "long_window" | "trade_dollars" | "lookback_days" | "check_interval_minutes"
+    | "strategy"
+    | "symbols"
+    | "short_window"
+    | "long_window"
+    | "trade_dollars"
+    | "lookback_days"
+    | "reward_risk"
+    | "check_interval_minutes"
 >;
 
 export interface Crossover {
     date: string;
     action: "BUY" | "SELL";
     result: string;
+    pattern?: string;
 }
 
 export interface SymbolStatus {
@@ -67,12 +79,18 @@ export interface SymbolStatus {
     long_ma?: number;
     trend?: "above" | "below";
     signal?: "BUY" | "SELL" | null;
+    support?: number | null;
+    resistance?: number | null;
+    pattern?: string | null;
+    stop?: number | null;
+    target?: number | null;
     last_crossover?: Crossover | null;
     error?: string;
 }
 
 export interface Status {
     mode?: Mode;
+    strategy?: StrategyName;
     short_window?: number;
     long_window?: number;
     trade_dollars?: number;

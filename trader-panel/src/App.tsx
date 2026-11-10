@@ -12,7 +12,7 @@ import {
     getStatus,
     updateConfig,
 } from "./services/trader";
-import type { Position, Trade, Health, PnL, Config, Status, EditableConfig } from "./services/trader";
+import type { Position, Trade, Health, PnL, Config, Status, EditableConfig, StrategyName } from "./services/trader";
 import TradingViewChart from "./components/TradingViewChart";
 import "./App.css";
 
@@ -25,11 +25,17 @@ const PERIODS = [
     { key: "all", label: "All" },
 ];
 
-type NumberField = Exclude<keyof EditableConfig, "symbols">;
+type NumberField = Exclude<keyof EditableConfig, "symbols" | "strategy">;
+
+const STRATEGY_LABELS: Record<StrategyName, string> = {
+    candlestick: "Candlestick patterns",
+    sma_crossover: "SMA crossover",
+};
 
 const NUMBER_FIELDS: { key: NumberField; label: string; min: number; step?: number }[] = [
-    { key: "short_window", label: "Short MA (days)", min: 1 },
-    { key: "long_window", label: "Long MA (days)", min: 2 },
+    { key: "short_window", label: "Short MA / level lookback (days)", min: 1 },
+    { key: "long_window", label: "Long MA / trend (days)", min: 2 },
+    { key: "reward_risk", label: "Target (× risk)", min: 0.5, step: 0.1 },
     { key: "trade_dollars", label: "Dollars per trade", min: 1, step: 0.01 },
     { key: "lookback_days", label: "History (days)", min: 2 },
     { key: "check_interval_minutes", label: "Check every (min)", min: 1 },
@@ -94,6 +100,19 @@ function SettingsForm({ config, onSaved }: { config: Config; onSaved: (c: Config
                     placeholder="AAPL, MSFT, SPY"
                     onChange={(e) => setDraft({ ...draft, symbols: e.target.value.toUpperCase() })}
                 />
+            </label>
+            <label className="symbols-field">
+                <span>Strategy</span>
+                <select
+                    value={draft.strategy}
+                    onChange={(e) => setDraft({ ...draft, strategy: e.target.value as StrategyName })}
+                >
+                    {Object.entries(STRATEGY_LABELS).map(([key, label]) => (
+                        <option key={key} value={key}>
+                            {label}
+                        </option>
+                    ))}
+                </select>
             </label>
             <div className="settings-grid">
                 {NUMBER_FIELDS.map((f) => (
@@ -197,7 +216,9 @@ function App() {
                 <section className="strategy-card">
                     <div className="strategy-title">
                         <h2>
-                            {config.short_window}/{config.long_window} SMA crossover
+                            {config.strategy === "candlestick"
+                                ? `Candlestick patterns · ${config.long_window}-day trend · ${config.reward_risk}R target`
+                                : `${config.short_window}/${config.long_window} SMA crossover`}
                         </h2>
                         <span>
                             {money(config.trade_dollars)} per buy · {config.symbols.length} symbol
@@ -213,7 +234,7 @@ function App() {
                                     <th>{shortLabel}</th>
                                     <th>{longLabel}</th>
                                     <th>Trend</th>
-                                    <th>Last crossover</th>
+                                    <th>Last signal</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -243,7 +264,9 @@ function App() {
                                                     </td>
                                                     <td>
                                                         {row.last_crossover
-                                                            ? `${row.last_crossover.action} ${row.last_crossover.date} (${row.last_crossover.result})`
+                                                            ? `${row.last_crossover.action} ${row.last_crossover.date}${
+                                                                  row.last_crossover.pattern ? ` · ${row.last_crossover.pattern}` : ""
+                                                              } (${row.last_crossover.result})`
                                                             : "—"}
                                                     </td>
                                                 </>
@@ -349,7 +372,7 @@ function App() {
             <section>
                 <h2>Recent Trades</h2>
                 {trades.length === 0 ? (
-                    <p className="empty">No trades yet. The bot trades only when a crossover happens.</p>
+                    <p className="empty">No trades yet. The bot trades only when its strategy gives a signal.</p>
                 ) : (
                     <div className="table-wrap">
                         <table>

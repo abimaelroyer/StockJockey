@@ -1,9 +1,11 @@
 {
-  "symbols": ["AAPL"],
+  "strategy": "candlestick",
+  "symbols": ["SPY", "QQQ", "TSLA", "NVDA", "AMD", "MSFT", "AMZN", "AAPL", "META", "PLTR"],
   "short_window": 20,
   "long_window": 50,
   "trade_dollars": 20.0,
   "lookback_days": 100,
+  "reward_risk": 2.0,
   "mode": "paper",
   "check_interval_minutes": 15,
   "paper_starting_balance": 100.0
