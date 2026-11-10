@@ -1,4 +1,4 @@
-"""Order execution for the crossover bot.
+"""Order execution for the trading bot.
 
 Two brokers sit behind one interface, chosen by config.json's "mode":
 
@@ -204,16 +204,18 @@ def read_ledger():
         return list(csv.DictReader(f))
 
 
-def _notify_discord(row):
+def _notify_discord(row, note=None):
     webhook_url = os.environ.get("DISCORD_WEBHOOK_URL")
     if not webhook_url:
         return
     mode = "LIVE ORDER" if row["mode"] == "live" else "PAPER TRADE"
     lines = [
-        "📈 **MA CROSSOVER TRADE** 📉",
+        "📈 **STOCKJOCKEY TRADE** 📉",
         f"**Action:** {row['action']} {row['quantity']} × {row['symbol']}",
         f"**Price:** ${float(row['price']):.2f}",
     ]
+    if note:
+        lines.append(f"**Why:** {note}")
     if row["short_ma"] and row["long_ma"]:
         lines.append(f"**Short MA / Long MA:** {row['short_ma']} / {row['long_ma']}")
     lines.append(f"**Mode:** {mode} (via {row['source']})")
@@ -233,8 +235,10 @@ def _notify_discord(row):
 # ---------------------------------------------------------------------------
 
 
-def execute_signal(cfg, action, symbol, price, source, short_ma=None, long_ma=None):
+def execute_signal(cfg, action, symbol, price, source, short_ma=None, long_ma=None, note=None):
     """Place a BUY or SELL for `symbol` on the broker selected by cfg["mode"].
+
+    `note` (e.g. "bullish engulfing at support") is added to the Discord alert.
 
     Returns {"status": "filled", "trade": {...}} or {"status": "skipped",
     "reason": "..."}. Raises on broker/network errors so callers can retry.
@@ -295,6 +299,6 @@ def execute_signal(cfg, action, symbol, price, source, short_ma=None, long_ma=No
 
     print(f"[{broker.mode.upper()}] {action} "
           f"{qty:g} {symbol} @ ${fill:.2f} (via {source})")
-    _notify_discord(row)
+    _notify_discord(row, note)
     return {"status": "filled", "trade": row}
 

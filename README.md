@@ -1,8 +1,17 @@
 # StockJockey
 
-A moving average crossover bot. It watches a list of stocks (AAPL by
-default), and when a stock's 20-day simple moving average crosses its 50-day
-between two consecutive days it places an order for that stock:
+A trading bot that watches a list of stocks (AAPL by default) on daily
+candles. `config.json`'s `strategy` picks the rules:
+
+- **`candlestick`** (default): candlestick patterns at key price levels. See
+  [Candlestick strategy](#candlestick-strategy).
+- **`sma_crossover`**: the original 20/50-day moving average crossover,
+  described next.
+
+### SMA crossover
+
+When a stock's 20-day simple moving average crosses its 50-day between two
+consecutive days it places an order for that stock:
 
 | Crossover | Meaning | Order |
 |---|---|---|
@@ -12,6 +21,33 @@ between two consecutive days it places an order for that stock:
 Price history (the last `lookback_days` daily bars) comes from **yfinance**.
 Orders go to **paper** (simulated) or **Robinhood** (live), and the
 **trader panel** shows a **TradingView** chart with both moving averages.
+
+Crossovers are rare: on AAPL there were 7 golden crosses in the two years to
+November 2026, and none between the 2026-09-15 cross and this writing. The
+bot also only acts on a crossover the day after it forms, so if it isn't
+running that day the signal is missed.
+
+### Candlestick strategy
+
+Built from the patterns in Data Trader's video *The BEST Candlestick Pattern
+Guide You'll EVER FIND*. The rules live in `candles.py`. A pattern only
+counts where it forms:
+
+| | BUY (when not holding) | SELL (when holding) |
+|---|---|---|
+| **Reversal** | bullish engulfing, hammer pin bar, or 3 shrinking red candles then a green close above the last high, **at support** (the lowest low of the last `short_window` days) **or on a pullback to the rising `long_window`-day average** | bearish engulfing, shooting-star pin bar, or 3 shrinking green candles then a red close below the last low, **at resistance** (the highest high of the last `short_window` days) |
+| **Breakout** | a green candle with a body 1.5× the average, closing **above resistance**, while price is above the trend average | a red candle with a body 1.5× the average, closing **below support** |
+| **Risk** | stop = the pattern's low, target = entry + `reward_risk` × (entry − stop) | sells when a daily close is at/below the stop or at/above the target |
+
+"At a level" means within one average candle range of it. Stops and targets
+are saved in `state/trade_plans.json`. Like the crossover, it acts only on
+completed daily bars, and each signal is acted on once.
+
+On two years of AAPL daily bars (Nov 2024 to Nov 2026) the rules made 27 round
+trips, 15 winners, about +12% summed across trades, while simply holding
+AAPL gained about 52%. It trades far more often than the crossover, but
+that's not evidence it will be profitable; try it in paper mode first.
+`candles.backtest(bars)` replays the rules on any OHLC DataFrame.
 
 ## Setup
 
@@ -31,19 +67,28 @@ copy the template yourself (`cp config.example.json config.json`).
 
 ```json
 {
+  "strategy": "candlestick",
   "symbols": ["AAPL"],
   "short_window": 20,
   "long_window": 50,
   "trade_dollars": 100.0,
   "lookback_days": 100,
+  "reward_risk": 2.0,
   "mode": "paper",
   "check_interval_minutes": 15,
   "paper_starting_balance": 1000.0
 }
 ```
 
+- `strategy`: `"candlestick"` or `"sma_crossover"`.
+- `short_window` / `long_window`: the two moving averages for the crossover.
+  For the candlestick strategy, `short_window` is how many days back
+  support, resistance and the "average candle" look, and `long_window` is the
+  trend average.
+- `reward_risk`: candlestick profit target as a multiple of the risk to the
+  stop (2.0 = aim for twice what you risk).
 - `symbols`: every stock the bot watches (up to 25). Each one gets the same
-  crossover rules and is tracked separately, so the bot can hold several at
+  rules and is tracked separately, so the bot can hold several at
   once. A symbol yfinance doesn't recognise shows an error in the panel
   without stopping the others.
 - `trade_dollars`: how much each BUY spends, as fractional shares (minimum

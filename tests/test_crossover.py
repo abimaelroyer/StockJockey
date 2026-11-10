@@ -82,6 +82,15 @@ class ConfigTests(unittest.TestCase):
         self.assertEqual((cfg["symbols"], cfg["short_window"], cfg["long_window"], cfg["trade_dollars"]),
                          (["AAPL"], 20, 50, 100.0))
 
+    def test_strategy_defaults_to_candlestick(self):
+        cfg = config.validate({})
+        self.assertEqual((cfg["strategy"], cfg["reward_risk"]), ("candlestick", 2.0))
+        self.assertEqual(config.validate({"strategy": " SMA_Crossover "})["strategy"], "sma_crossover")
+        with self.assertRaises(ValueError):
+            config.validate({"strategy": "astrology"})
+        with self.assertRaises(ValueError):
+            config.validate({"reward_risk": 0})
+
     def test_symbols_are_cleaned(self):
         cfg = config.validate({"symbols": ["aapl", " msft ", "AAPL", ""]})
         self.assertEqual(cfg["symbols"], ["AAPL", "MSFT"])
@@ -188,8 +197,8 @@ class RunCycleTests(unittest.TestCase):
             patcher = mock.patch.object(strategy, name, os.path.join(tmp.name, rel))
             patcher.start()
             self.addCleanup(patcher.stop)
-        self.cfg = config.validate({"symbols": ["UP", "FLAT", "BAD"], "short_window": 2,
-                                    "long_window": 4, "lookback_days": 10})
+        self.cfg = config.validate({"strategy": "sma_crossover", "symbols": ["UP", "FLAT", "BAD"],
+                                    "short_window": 2, "long_window": 4, "lookback_days": 10})
 
     def fake_fetch(self, symbol, lookback_days):
         if symbol == "BAD":
@@ -213,7 +222,8 @@ class RunCycleTests(unittest.TestCase):
         execute.assert_not_called()
 
     def test_all_symbols_failing_raises(self):
-        cfg = config.validate({"symbols": ["BAD"], "short_window": 2, "long_window": 4, "lookback_days": 10})
+        cfg = config.validate({"strategy": "sma_crossover", "symbols": ["BAD"], "short_window": 2,
+                               "long_window": 4, "lookback_days": 10})
         with mock.patch.object(strategy, "fetch_daily_closes", self.fake_fetch):
             with self.assertRaises(RuntimeError):
                 strategy.run_cycle(cfg)
