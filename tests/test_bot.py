@@ -23,73 +23,36 @@ def series(values, end=datetime.date(2026, 10, 23)):
     return pd.Series(values, index=[d.date() for d in days], dtype=float)
 
 
-class DetectCrossoverTests(unittest.TestCase):
-    def frame(self, values, short=2, long=4):
-        return strategy.compute_moving_averages(series(values), short, long)
-
-    def test_golden_cross_is_buy(self):
-        # short MA goes from below the long MA to above it on the last day
-        self.assertEqual(strategy.detect_crossover(self.frame([10, 10, 10, 9, 9, 13])), "BUY")
-
-    def test_death_cross_is_sell(self):
-        self.assertEqual(strategy.detect_crossover(self.frame([10, 10, 10, 11, 11, 7])), "SELL")
-
-    def test_no_cross_while_trend_continues(self):
-        self.assertIsNone(strategy.detect_crossover(self.frame([1, 2, 3, 4, 5, 6, 7])))
-        self.assertIsNone(strategy.detect_crossover(self.frame([7, 6, 5, 4, 3, 2, 1])))
-
-    def test_cross_must_be_on_last_two_days(self):
-        # crossed up a day earlier, still above today -> no new signal
-        self.assertIsNone(strategy.detect_crossover(self.frame([10, 10, 10, 9, 9, 13, 14])))
-
-    def test_touch_then_move_counts_as_cross(self):
-        # equal yesterday, above today
-        self.assertEqual(strategy.detect_crossover(self.frame([10, 10, 10, 10, 10, 12])), "BUY")
-
-    def test_not_enough_data(self):
-        self.assertIsNone(strategy.detect_crossover(self.frame([10, 11, 12, 13])))
-
-    def test_20_50_on_realistic_series(self):
-        # 70 days falling then 30 days rising: one golden cross somewhere in the rise
-        values = [200 - i for i in range(70)] + [130 + 3 * i for i in range(30)]
-        frame = strategy.compute_moving_averages(series(values), 20, 50)
-        signals = [
-            strategy.detect_crossover(frame.iloc[: i + 1]) for i in range(len(frame))
-        ]
-        self.assertEqual([s for s in signals if s], ["BUY"])
-
-
-class CompletedClosesTests(unittest.TestCase):
+class CompletedBarsTests(unittest.TestCase):
     def test_drops_todays_bar_while_market_open(self):
         closes = series([1, 2, 3], end=datetime.date(2026, 10, 27))
         now = datetime.datetime(2026, 10, 27, 11, 0, tzinfo=ET)
-        self.assertEqual(list(strategy.completed_closes(closes, 100, now)), [1, 2])
+        self.assertEqual(list(strategy.completed_bars(closes, 100, now)), [1, 2])
 
     def test_keeps_todays_bar_after_close(self):
         closes = series([1, 2, 3], end=datetime.date(2026, 10, 27))
         now = datetime.datetime(2026, 10, 27, 16, 30, tzinfo=ET)
-        self.assertEqual(list(strategy.completed_closes(closes, 100, now)), [1, 2, 3])
+        self.assertEqual(list(strategy.completed_bars(closes, 100, now)), [1, 2, 3])
 
     def test_trims_to_lookback(self):
         closes = series(range(150))
         now = datetime.datetime(2026, 10, 25, 12, 0, tzinfo=ET)
-        self.assertEqual(len(strategy.completed_closes(closes, 100, now)), 100)
+        self.assertEqual(len(strategy.completed_bars(closes, 100, now)), 100)
 
 
 class ConfigTests(unittest.TestCase):
     def test_defaults(self):
         cfg = config.validate({})
-        self.assertEqual((cfg["symbols"], cfg["short_window"], cfg["long_window"], cfg["trade_dollars"]),
-                         (["AAPL"], 20, 50, 100.0))
-
-    def test_strategy_defaults_to_candlestick(self):
-        cfg = config.validate({})
-        self.assertEqual((cfg["strategy"], cfg["reward_risk"]), ("candlestick", 2.0))
-        self.assertEqual(config.validate({"strategy": " SMA_Crossover "})["strategy"], "sma_crossover")
-        with self.assertRaises(ValueError):
-            config.validate({"strategy": "astrology"})
+        self.assertEqual((cfg["symbols"], cfg["level_window"], cfg["trend_window"], cfg["trade_dollars"],
+                          cfg["reward_risk"]), (["AAPL"], 20, 50, 100.0, 2.0))
         with self.assertRaises(ValueError):
             config.validate({"reward_risk": 0})
+
+    def test_old_moving_average_config_migrates(self):
+        cfg = config.validate({"strategy": "sma_crossover", "short_window": 15, "long_window": 40})
+        self.assertEqual((cfg["level_window"], cfg["trend_window"]), (15, 40))
+        for gone in ("strategy", "short_window", "long_window"):
+            self.assertNotIn(gone, cfg)
 
     def test_symbols_are_cleaned(self):
         cfg = config.validate({"symbols": ["aapl", " msft ", "AAPL", ""]})
@@ -118,8 +81,8 @@ class ConfigTests(unittest.TestCase):
                     self.assertIn("25", f.read())  # template untouched
 
     def test_rejects_bad_values(self):
-        for bad in ({"short_window": 50, "long_window": 20},
-                    {"long_window": 120, "lookback_days": 100},
+        for bad in ({"level_window": 1},
+                    {"trend_window": 120, "lookback_days": 100},
                     {"mode": "yolo"},
                     {"symbols": []},
                     {"symbols": ["AAPL", "NOT A TICKER"]},
@@ -144,7 +107,7 @@ class PaperBrokerTests(unittest.TestCase):
         self.cfg = config.validate({"paper_starting_balance": 1000})
 
     def test_buy_then_sell_round_trip(self):
-        buy = brokers.execute_signal(self.cfg, "BUY", "AAPL", 250.0, "bot", 251.0, 249.0)
+        buy = brokers.execute_signal(self.cfg, "BUY", "AAPL", 250.0, "bot", pattern="bullish engulfing at support")
         self.assertEqual(buy["status"], "filled")
         self.assertEqual(brokers.load_positions()["AAPL"]["quantity"], 0.4)  # $100 / $250
         self.assertAlmostEqual(brokers.load_paper_balance(1000), 900.0)
@@ -188,45 +151,77 @@ class PaperBrokerTests(unittest.TestCase):
         self.assertIn("AAPL", brokers.load_positions())
 
 
+def bars(rows, end=datetime.date(2026, 10, 23)):
+    days = pd.bdate_range(end=end, periods=len(rows))
+    return pd.DataFrame(rows, index=[d.date() for d in days],
+                        columns=["open", "high", "low", "close"], dtype=float)
+
+
+QUIET = [(100.0, 100.8, 99.2, 100.5) if i % 2 else (100.5, 100.8, 99.2, 100.0) for i in range(30)]
+# Large red, smaller red, big green at support: a bullish three-bar reversal.
+REVERSAL = [(101.0, 101.1, 99.4, 99.5), (99.5, 99.6, 98.8, 99.0), (99.0, 100.7, 98.9, 100.6)]
+
+
 class RunCycleTests(unittest.TestCase):
     def setUp(self):
         tmp = tempfile.TemporaryDirectory()
         self.addCleanup(tmp.cleanup)
         for name, rel in [("STATE_DIR", ""), ("STATUS_PATH", "status.json"),
-                          ("SIGNAL_STATE_PATH", "signal_state.json")]:
+                          ("SIGNAL_STATE_PATH", "signal_state.json"),
+                          ("TRADE_PLANS_PATH", "trade_plans.json")]:
             patcher = mock.patch.object(strategy, name, os.path.join(tmp.name, rel))
             patcher.start()
             self.addCleanup(patcher.stop)
-        self.cfg = config.validate({"strategy": "sma_crossover", "symbols": ["UP", "FLAT", "BAD"],
-                                    "short_window": 2, "long_window": 4, "lookback_days": 10})
+        for target, value in [(strategy.brokers, "load_positions"), (strategy, "market_is_open")]:
+            patcher = mock.patch.object(target, value, return_value={} if value == "load_positions" else False)
+            patcher.start()
+            self.addCleanup(patcher.stop)
+        self.cfg = config.validate({"symbols": ["REV", "FLAT", "BAD"], "level_window": 20,
+                                    "trend_window": 20, "lookback_days": 40})
 
     def fake_fetch(self, symbol, lookback_days):
         if symbol == "BAD":
             raise RuntimeError("no data")
-        values = [10, 10, 10, 9, 9, 13] if symbol == "UP" else [5, 5, 5, 5, 5, 5]
-        return series(values)
+        return bars(QUIET + (REVERSAL if symbol == "REV" else QUIET[:3]))
 
     def test_each_symbol_checked_and_failures_isolated(self):
-        with mock.patch.object(strategy, "fetch_daily_closes", self.fake_fetch),              mock.patch.object(strategy.brokers, "execute_signal",
+        with mock.patch.object(strategy, "fetch_daily_bars", self.fake_fetch), \
+             mock.patch.object(strategy.brokers, "execute_signal",
                                return_value={"status": "filled", "trade": {}}) as execute:
             rows = strategy.run_cycle(self.cfg)
-        self.assertEqual(rows["UP"]["signal"], "BUY")
+        self.assertEqual(rows["REV"]["signal"], "BUY")
         self.assertIsNone(rows["FLAT"]["signal"])
         self.assertIn("error", rows["BAD"])
         execute.assert_called_once()
-        self.assertEqual(execute.call_args.args[1:3], ("BUY", "UP"))
+        self.assertEqual(execute.call_args.args[1:3], ("BUY", "REV"))
 
-        # The same crossover is not traded twice.
-        with mock.patch.object(strategy, "fetch_daily_closes", self.fake_fetch),              mock.patch.object(strategy.brokers, "execute_signal") as execute:
+        # The same signal is not traded twice.
+        with mock.patch.object(strategy, "fetch_daily_bars", self.fake_fetch), \
+             mock.patch.object(strategy.brokers, "execute_signal") as execute:
             strategy.run_cycle(self.cfg)
         execute.assert_not_called()
 
     def test_all_symbols_failing_raises(self):
-        cfg = config.validate({"strategy": "sma_crossover", "symbols": ["BAD"], "short_window": 2,
-                               "long_window": 4, "lookback_days": 10})
-        with mock.patch.object(strategy, "fetch_daily_closes", self.fake_fetch):
+        cfg = config.validate({"symbols": ["BAD"]})
+        with mock.patch.object(strategy, "fetch_daily_bars", self.fake_fetch):
             with self.assertRaises(RuntimeError):
                 strategy.run_cycle(cfg)
+
+
+class LedgerMigrationTests(unittest.TestCase):
+    def test_moving_average_ledger_keeps_its_trades(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "trade_ledger.csv")
+            with open(path, "w") as f:
+                f.write("timestamp,symbol,action,quantity,price,short_ma,long_ma,mode,source\n"
+                        "2026-10-01T15:00:00+00:00,AAPL,BUY,0.1,250.0,251.0,249.0,paper,bot\n")
+            with mock.patch.object(brokers, "LEDGER_PATH", path), \
+                 mock.patch.object(brokers, "ARCHIVE_DIR", os.path.join(tmp, "archive")):
+                brokers._ensure_ledger_schema()
+                rows = brokers.read_ledger()
+            self.assertEqual(list(rows[0]), brokers.LEDGER_FIELDS)
+            self.assertEqual((rows[0]["symbol"], rows[0]["price"], rows[0]["pattern"]), ("AAPL", "250.0", ""))
+            self.assertFalse(os.path.exists(os.path.join(tmp, "archive")))
 
 
 if __name__ == "__main__":

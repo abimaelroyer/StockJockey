@@ -24,8 +24,7 @@ export interface Trade {
     action: "BUY" | "SELL";
     quantity: string;
     price: string;
-    short_ma: string;
-    long_ma: string;
+    pattern?: string;
     mode: Mode;
     source: "bot" | "tradingview";
 }
@@ -37,13 +36,10 @@ export interface Health {
     detail?: string | null;
 }
 
-export type StrategyName = "candlestick" | "sma_crossover";
-
 export interface Config {
-    strategy: StrategyName;
     symbols: string[];
-    short_window: number;
-    long_window: number;
+    level_window: number;
+    trend_window: number;
     trade_dollars: number;
     lookback_days: number;
     reward_risk: number;
@@ -54,17 +50,16 @@ export interface Config {
 
 export type EditableConfig = Pick<
     Config,
-    | "strategy"
     | "symbols"
-    | "short_window"
-    | "long_window"
+    | "level_window"
+    | "trend_window"
     | "trade_dollars"
     | "lookback_days"
     | "reward_risk"
     | "check_interval_minutes"
 >;
 
-export interface Crossover {
+export interface LastSignal {
     date: string;
     action: "BUY" | "SELL";
     result: string;
@@ -75,24 +70,22 @@ export interface SymbolStatus {
     as_of?: string;
     close?: number;
     latest_price?: number;
-    short_ma?: number;
-    long_ma?: number;
-    trend?: "above" | "below";
+    uptrend?: boolean;
+    holding?: boolean;
     signal?: "BUY" | "SELL" | null;
     support?: number | null;
     resistance?: number | null;
     pattern?: string | null;
     stop?: number | null;
     target?: number | null;
-    last_crossover?: Crossover | null;
+    last_signal?: LastSignal | null;
     error?: string;
 }
 
 export interface Status {
     mode?: Mode;
-    strategy?: StrategyName;
-    short_window?: number;
-    long_window?: number;
+    level_window?: number;
+    trend_window?: number;
     trade_dollars?: number;
     checked_at?: string;
     symbols?: Record<string, SymbolStatus>;

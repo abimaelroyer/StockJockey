@@ -33,6 +33,12 @@ LEDGER_PATH = os.path.join(SCRIPT_DIR, "trade_ledger.csv")
 
 LEDGER_FIELDS = [
     "timestamp", "symbol", "action", "quantity", "price",
+    "pattern", "mode", "source",
+]
+# The moving-average version of the ledger. Its trades are carried over into
+# the current schema (without the MA columns) instead of being archived.
+MA_LEDGER_FIELDS = [
+    "timestamp", "symbol", "action", "quantity", "price",
     "short_ma", "long_ma", "mode", "source",
 ]
 
@@ -176,12 +182,22 @@ def get_broker(cfg):
 
 
 def _ensure_ledger_schema():
-    """Move aside a ledger written by an older version of the bot."""
+    """Bring an older ledger up to the current columns.
+
+    The moving-average ledger is rewritten in place so its trades still count
+    toward P&L; anything older is moved aside to archive/."""
     if not os.path.exists(LEDGER_PATH):
         return
     with open(LEDGER_PATH, newline="") as f:
         header = next(csv.reader(f), None)
-    if header != LEDGER_FIELDS:
+    if header == MA_LEDGER_FIELDS:
+        rows = read_ledger()
+        with open(LEDGER_PATH, "w", newline="") as f:
+            writer = csv.DictWriter(f, fieldnames=LEDGER_FIELDS, extrasaction="ignore")
+            writer.writeheader()
+            for row in rows:
+                writer.writerow({**row, "pattern": ""})
+    elif header != LEDGER_FIELDS:
         os.makedirs(ARCHIVE_DIR, exist_ok=True)
         stamp = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
         os.replace(LEDGER_PATH, os.path.join(ARCHIVE_DIR, f"trade_ledger.{stamp}.bak.csv"))
@@ -204,7 +220,7 @@ def read_ledger():
         return list(csv.DictReader(f))
 
 
-def _notify_discord(row, note=None):
+def _notify_discord(row):
     webhook_url = os.environ.get("DISCORD_WEBHOOK_URL")
     if not webhook_url:
         return
@@ -214,10 +230,8 @@ def _notify_discord(row, note=None):
         f"**Action:** {row['action']} {row['quantity']} × {row['symbol']}",
         f"**Price:** ${float(row['price']):.2f}",
     ]
-    if note:
-        lines.append(f"**Why:** {note}")
-    if row["short_ma"] and row["long_ma"]:
-        lines.append(f"**Short MA / Long MA:** {row['short_ma']} / {row['long_ma']}")
+    if row["pattern"]:
+        lines.append(f"**Why:** {row['pattern']}")
     lines.append(f"**Mode:** {mode} (via {row['source']})")
     try:
         req = urllib.request.Request(
@@ -235,10 +249,11 @@ def _notify_discord(row, note=None):
 # ---------------------------------------------------------------------------
 
 
-def execute_signal(cfg, action, symbol, price, source, short_ma=None, long_ma=None, note=None):
+def execute_signal(cfg, action, symbol, price, source, pattern=None):
     """Place a BUY or SELL for `symbol` on the broker selected by cfg["mode"].
 
-    `note` (e.g. "bullish engulfing at support") is added to the Discord alert.
+    `pattern` (e.g. "bullish engulfing at support") is saved in the ledger and
+    shown in the Discord alert.
 
     Returns {"status": "filled", "trade": {...}} or {"status": "skipped",
     "reason": "..."}. Raises on broker/network errors so callers can retry.
@@ -290,8 +305,7 @@ def execute_signal(cfg, action, symbol, price, source, short_ma=None, long_ma=No
             "action": action,
             "quantity": round(qty, 6),
             "price": round(fill, 4),
-            "short_ma": "" if short_ma is None else round(short_ma, 4),
-            "long_ma": "" if long_ma is None else round(long_ma, 4),
+            "pattern": pattern or "",
             "mode": broker.mode,
             "source": source,
         }
@@ -299,6 +313,6 @@ def execute_signal(cfg, action, symbol, price, source, short_ma=None, long_ma=No
 
     print(f"[{broker.mode.upper()}] {action} "
           f"{qty:g} {symbol} @ ${fill:.2f} (via {source})")
-    _notify_discord(row, note)
+    _notify_discord(row)
     return {"status": "filled", "trade": row}
 

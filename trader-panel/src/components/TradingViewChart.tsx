@@ -2,15 +2,12 @@ import { useEffect, useRef } from "react";
 
 interface Props {
     symbol: string;
-    shortWindow: number;
-    longWindow: number;
 }
 
 const WIDGET_SRC = "https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js";
 
-// TradingView's embeddable Advanced Chart, on daily candles with the same two
-// simple moving averages the bot trades on.
-export default function TradingViewChart({ symbol, shortWindow, longWindow }: Props) {
+// TradingView's embeddable Advanced Chart, on the daily candles the bot reads.
+export default function TradingViewChart({ symbol }: Props) {
     const container = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
@@ -36,10 +33,6 @@ export default function TradingViewChart({ symbol, shortWindow, longWindow }: Pr
             locale: "en",
             allow_symbol_change: false,
             hide_side_toolbar: true,
-            studies: [
-                { id: "MASimple@tv-basicstudies", inputs: { length: shortWindow } },
-                { id: "MASimple@tv-basicstudies", inputs: { length: longWindow } },
-            ],
             support_host: "https://www.tradingview.com",
         });
 
@@ -50,7 +43,7 @@ export default function TradingViewChart({ symbol, shortWindow, longWindow }: Pr
             clearTimeout(timer);
             el.replaceChildren();
         };
-    }, [symbol, shortWindow, longWindow]);
+    }, [symbol]);
 
     // The embed script forces its container to height: 100%, so the fixed
     // height lives on the wrapper.

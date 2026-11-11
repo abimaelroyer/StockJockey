@@ -1,28 +1,18 @@
-"""Trading bot loop.
+"""Trading bot loop: candlestick patterns at key levels.
 
-config.json's "strategy" picks the rules:
+Every cycle during market hours, for each symbol in config.json:
 
-  candlestick    -- candlestick patterns at key levels (see candles.py). The
-                    default.
-  sma_crossover  -- the original moving average crossover, described below.
-
-Both read the same completed daily bars and trade through
-brokers.execute_signal().
-
-SMA crossover: every cycle during market hours, for each symbol in config.json:
-
-  1. Read config.json (symbols, short/long MA periods, dollars per trade, mode).
+  1. Read config.json (symbols, level/trend windows, dollars per trade, mode).
   2. Fetch the last `lookback_days` daily bars for the symbol from yfinance.
-  3. Compute the short and long simple moving averages.
-  4. Compare the two most recent COMPLETED days. A crossover is when the short
-     MA goes from at/below the long MA to above it (BUY), or from at/above to
-     below it (SELL).
-  5. On a crossover, place the order through brokers.execute_signal() -- a
-     simulated fill in paper mode, a Robinhood market order in live mode.
+  3. Not holding it: look for a BUY pattern (candles.find_entry).
+     Holding it: look for a SELL (candles.find_exit) -- the stop or target
+     being reached, or a bearish pattern.
+  4. Place the order through brokers.execute_signal() -- a simulated fill in
+     paper mode, a Robinhood market order in live mode.
 
-Today's bar is ignored while the market is open: its close keeps moving, and a
-signal from a half-finished day can flip back before the bell. Each crossover
-is acted on once (state/signal_state.json remembers the last one handled).
+Today's bar is ignored while the market is open: its candle keeps changing
+until the close. Each signal is acted on once (state/signal_state.json
+remembers the last one handled).
 """
 
 import datetime
@@ -91,46 +81,12 @@ def fetch_daily_bars(symbol, lookback_days):
     return bars
 
 
-def fetch_daily_closes(symbol, lookback_days):
-    """Daily closes for `symbol`, oldest first, indexed by trading date."""
-    return fetch_daily_bars(symbol, lookback_days)["close"]
-
-
-def completed_closes(closes, lookback_days, now=None):
-    """Drop today's still-forming bar while the market is open, keep the last N days.
-
-    Works on a Series of closes or a DataFrame of bars alike."""
+def completed_bars(bars, lookback_days, now=None):
+    """Drop today's still-forming bar while the market is open, keep the last N days."""
     now = now or market_now()
-    if len(closes) and closes.index[-1] == now.date() and market_is_open(now):
-        closes = closes.iloc[:-1]
-    return closes.tail(lookback_days)
-
-
-# ---------------------------------------------------------------------------
-# Signal
-# ---------------------------------------------------------------------------
-
-
-def compute_moving_averages(closes, short_window, long_window):
-    return pd.DataFrame({
-        "close": closes,
-        "short_ma": closes.rolling(window=short_window).mean(),
-        "long_ma": closes.rolling(window=long_window).mean(),
-    })
-
-
-def detect_crossover(frame):
-    """Return "BUY", "SELL" or None by comparing the last two rows of `frame`."""
-    if len(frame) < 2:
-        return None
-    prev, cur = frame.iloc[-2], frame.iloc[-1]
-    if pd.isna([prev.short_ma, prev.long_ma, cur.short_ma, cur.long_ma]).any():
-        return None
-    if prev.short_ma <= prev.long_ma and cur.short_ma > cur.long_ma:
-        return "BUY"
-    if prev.short_ma >= prev.long_ma and cur.short_ma < cur.long_ma:
-        return "SELL"
-    return None
+    if len(bars) and bars.index[-1] == now.date() and market_is_open(now):
+        bars = bars.iloc[:-1]
+    return bars.tail(lookback_days)
 
 
 # ---------------------------------------------------------------------------
@@ -174,71 +130,11 @@ def write_heartbeat(status="ok", detail=None):
 # ---------------------------------------------------------------------------
 
 
-def check_symbol(cfg, symbol, signal_state):
-    """Check one symbol with the configured strategy and return its status row."""
-    if cfg["strategy"] == "candlestick":
-        return check_symbol_candles(cfg, symbol, signal_state)
-    return check_symbol_crossover(cfg, symbol, signal_state)
-
-
-def check_symbol_crossover(cfg, symbol, signal_state):
-    """Check one symbol for a crossover, trade it, and return its status row."""
-    closes = fetch_daily_closes(symbol, cfg["lookback_days"])
-    latest_price = float(closes.iloc[-1])
-
-    frame = compute_moving_averages(
-        completed_closes(closes, cfg["lookback_days"]),
-        cfg["short_window"],
-        cfg["long_window"],
-    )
-    if len(frame) < cfg["long_window"] + 1:
-        raise RuntimeError(
-            f"Only {len(frame)} days of data for {symbol}; need {cfg['long_window'] + 1}"
-        )
-
-    last = frame.iloc[-1]
-    bar_date = frame.index[-1].isoformat()
-    signal = detect_crossover(frame)
-
-    print(f"{symbol} {bar_date}: close ${last.close:.2f} | "
-          f"{cfg['short_window']}-day MA {last.short_ma:.2f} | "
-          f"{cfg['long_window']}-day MA {last.long_ma:.2f} | signal: {signal or 'none'}")
-
-    last_handled = signal_state.get(symbol, {})
-    if signal and last_handled.get("date") == bar_date and last_handled.get("action") == signal:
-        print(f"{symbol}: {signal} crossover on {bar_date} already handled.")
-    elif signal:
-        print(f"{symbol}: {signal} crossover: {cfg['short_window']}-day MA crossed "
-              f"{'above' if signal == 'BUY' else 'below'} the {cfg['long_window']}-day MA on {bar_date}.")
-        result = brokers.execute_signal(
-            cfg, signal, symbol, latest_price, source="bot",
-            short_ma=float(last.short_ma), long_ma=float(last.long_ma),
-        )
-        if result["status"] == "skipped":
-            print(f"{symbol}: order skipped: {result['reason']}")
-        # Broker errors raise before this point, so a failed order is retried
-        # next cycle; filled and deliberately-skipped signals are not. Saved
-        # per symbol so a crash later in the cycle can't repeat this order.
-        signal_state[symbol] = {"date": bar_date, "action": signal, "result": result["status"]}
-        _write_json(SIGNAL_STATE_PATH, signal_state)
-
-    return {
-        "as_of": bar_date,
-        "close": round(float(last.close), 4),
-        "latest_price": round(latest_price, 4),
-        "short_ma": round(float(last.short_ma), 4),
-        "long_ma": round(float(last.long_ma), 4),
-        "trend": "above" if last.short_ma > last.long_ma else "below",
-        "signal": signal,
-        "last_crossover": signal_state.get(symbol),
-    }
-
-
 def _round(value):
     return None if value is None or pd.isna(value) else round(float(value), 4)
 
 
-def check_symbol_candles(cfg, symbol, signal_state):
+def check_symbol(cfg, symbol, signal_state):
     """Check one symbol for a candlestick setup, trade it, and return its status row.
 
     Not holding the symbol -> look for a BUY (candles.find_entry).
@@ -248,14 +144,11 @@ def check_symbol_candles(cfg, symbol, signal_state):
     bars = fetch_daily_bars(symbol, cfg["lookback_days"])
     latest_price = float(bars["close"].iloc[-1])
 
-    completed = completed_closes(bars, cfg["lookback_days"])
-    # short_window sets how far back support/resistance and "average candle"
-    # look; long_window is the trend average.
-    frame = candles.add_context(completed, cfg["short_window"], cfg["long_window"])
-    if len(frame) < cfg["long_window"] + 1:
-        raise RuntimeError(
-            f"Only {len(frame)} days of data for {symbol}; need {cfg['long_window'] + 1}"
-        )
+    completed = completed_bars(bars, cfg["lookback_days"])
+    frame = candles.add_context(completed, cfg["level_window"], cfg["trend_window"])
+    needed = max(cfg["level_window"], cfg["trend_window"]) + 1
+    if len(frame) < needed:
+        raise RuntimeError(f"Only {len(frame)} days of data for {symbol}; need {needed}")
 
     last = frame.iloc[-1]
     bar_date = frame.index[-1].isoformat()
@@ -271,7 +164,7 @@ def check_symbol_candles(cfg, symbol, signal_state):
     signal = decision["action"] if decision else None
 
     print(f"{symbol} {bar_date}: close ${last.close:.2f} | support {last.support:.2f} | "
-          f"resistance {last.resistance:.2f} | {cfg['long_window']}-day MA {last.trend_ma:.2f} | "
+          f"resistance {last.resistance:.2f} | {'uptrend' if candles.uptrend(frame) else 'no uptrend'} | "
           f"{'holding' if holding else 'flat'} | signal: "
           f"{decision['action'] + ' (' + decision['reason'] + ')' if decision else 'none'}")
 
@@ -285,9 +178,7 @@ def check_symbol_candles(cfg, symbol, signal_state):
                       "reason": f"price {latest_price:.2f} is already at/below the stop {decision['stop']:.2f}"}
         else:
             result = brokers.execute_signal(
-                cfg, signal, symbol, latest_price, source="bot",
-                short_ma=_round(frame.close.rolling(cfg["short_window"]).mean().iloc[-1]),
-                long_ma=_round(last.trend_ma), note=decision["reason"],
+                cfg, signal, symbol, latest_price, source="bot", pattern=decision["reason"],
             )
         if result["status"] == "skipped":
             print(f"{symbol}: order skipped: {result['reason']}")
@@ -302,21 +193,19 @@ def check_symbol_candles(cfg, symbol, signal_state):
         _write_json(SIGNAL_STATE_PATH, signal_state)
 
     plan = plans.get(symbol) if symbol in brokers.load_positions() else None
-    short_ma = frame.close.rolling(cfg["short_window"]).mean().iloc[-1]
     return {
         "as_of": bar_date,
         "close": round(float(last.close), 4),
         "latest_price": round(latest_price, 4),
-        "short_ma": _round(short_ma),
-        "long_ma": _round(last.trend_ma),
-        "trend": "above" if last.close > last.trend_ma else "below",
+        "uptrend": bool(candles.uptrend(frame)),
+        "holding": symbol in brokers.load_positions(),
         "support": _round(last.support),
         "resistance": _round(last.resistance),
         "signal": signal,
         "pattern": decision["reason"] if decision else None,
         "stop": plan.get("stop") if plan else None,
         "target": plan.get("target") if plan else None,
-        "last_crossover": signal_state.get(symbol),
+        "last_signal": signal_state.get(symbol),
     }
 
 
@@ -340,9 +229,8 @@ def run_cycle(cfg):
 
     _write_json(STATUS_PATH, {
         "mode": cfg["mode"],
-        "strategy": cfg["strategy"],
-        "short_window": cfg["short_window"],
-        "long_window": cfg["long_window"],
+        "level_window": cfg["level_window"],
+        "trend_window": cfg["trend_window"],
         "trade_dollars": cfg["trade_dollars"],
         "checked_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
         "symbols": rows,
@@ -359,8 +247,7 @@ def run_strategy():
         try:
             cfg = load_config()
             print(f"\nCycle at {market_now().strftime('%Y-%m-%d %I:%M %p %Z')} | "
-                  f"{', '.join(cfg['symbols'])} | {cfg['strategy']} "
-                  f"({cfg['short_window']}/{cfg['long_window']}) | "
+                  f"{', '.join(cfg['symbols'])} | candlestick patterns | "
                   f"${cfg['trade_dollars']:.2f} per trade | {cfg['mode'].upper()} mode")
 
             if not market_is_open():
