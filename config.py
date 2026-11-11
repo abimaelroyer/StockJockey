@@ -1,6 +1,6 @@
 """Bot settings, read from config.json.
 
-config.json holds what the bot trades (strategy, symbols, indicator periods, dollars
+config.json holds what the bot trades (symbols, level/trend windows, dollars
 per trade, paper/live mode). Credentials never go here -- they live in .env
 (see .env.example).
 """
@@ -16,10 +16,11 @@ CONFIG_PATH = os.path.join(SCRIPT_DIR, "config.json")
 EXAMPLE_CONFIG_PATH = os.path.join(SCRIPT_DIR, "config.example.json")
 
 DEFAULTS = {
-    "strategy": "candlestick",
     "symbols": ["AAPL"],
-    "short_window": 20,
-    "long_window": 50,
+    # Days back that support, resistance and the "average candle" look.
+    "level_window": 20,
+    # Days in the trend average the candlestick rules use as a dynamic level.
+    "trend_window": 50,
     "trade_dollars": 100.0,
     "lookback_days": 100,
     "reward_risk": 2.0,
@@ -29,10 +30,6 @@ DEFAULTS = {
 }
 
 MODES = ("paper", "live")
-# "candlestick": engulfing / pin bar / breakout / shrinking-candle patterns at
-#   support, resistance or the trend average (candles.py).
-# "sma_crossover": the original short/long moving average crossover.
-STRATEGIES = ("candlestick", "sma_crossover")
 MAX_SYMBOLS = 25
 # Robinhood's smallest fractional (dollar-based) order.
 MIN_TRADE_DOLLARS = 1.0
@@ -41,10 +38,9 @@ MIN_TRADE_DOLLARS = 1.0
 # out: switching to live (real-money) trading requires editing config.json by
 # hand and restarting the bot.
 EDITABLE_FIELDS = (
-    "strategy",
     "symbols",
-    "short_window",
-    "long_window",
+    "level_window",
+    "trend_window",
     "trade_dollars",
     "lookback_days",
     "reward_risk",
@@ -93,22 +89,27 @@ def validate(raw):
         raw["symbols"] = [raw["symbol"]]
     raw.pop("symbol", None)
     raw.pop("trade_quantity", None)
+    # The moving average crossover strategy was removed; its two windows map
+    # onto the candlestick strategy's level and trend windows.
+    raw.pop("strategy", None)
+    if "short_window" in raw:
+        raw.setdefault("level_window", raw["short_window"])
+    if "long_window" in raw:
+        raw.setdefault("trend_window", raw["long_window"])
+    raw.pop("short_window", None)
+    raw.pop("long_window", None)
     cfg = {**DEFAULTS, **raw}
 
     cfg["symbols"] = _clean_symbols(cfg["symbols"])
 
-    cfg["short_window"] = _as_int(cfg, "short_window", 1)
-    cfg["long_window"] = _as_int(cfg, "long_window", 2)
-    if cfg["short_window"] >= cfg["long_window"]:
-        raise ValueError("short_window must be smaller than long_window")
+    cfg["level_window"] = _as_int(cfg, "level_window", 2)
+    cfg["trend_window"] = _as_int(cfg, "trend_window", 2)
 
-    # A crossover compares the two most recent days, so both days need a
-    # fully-formed long moving average: that takes long_window + 1 bars.
+    # The newest candle needs a full window of days before it.
+    needed = max(cfg["level_window"], cfg["trend_window"]) + 1
     cfg["lookback_days"] = _as_int(cfg, "lookback_days", 2)
-    if cfg["lookback_days"] < cfg["long_window"] + 1:
-        raise ValueError(
-            f"lookback_days must be at least long_window + 1 ({cfg['long_window'] + 1})"
-        )
+    if cfg["lookback_days"] < needed:
+        raise ValueError(f"lookback_days must be at least {needed}")
 
     try:
         cfg["trade_dollars"] = round(float(cfg["trade_dollars"]), 2)
@@ -118,11 +119,6 @@ def validate(raw):
         raise ValueError(f"trade_dollars must be at least ${MIN_TRADE_DOLLARS:.2f}")
 
     cfg["check_interval_minutes"] = _as_int(cfg, "check_interval_minutes", 1)
-
-    strategy = str(cfg["strategy"]).strip().lower()
-    if strategy not in STRATEGIES:
-        raise ValueError(f"strategy must be one of {STRATEGIES}")
-    cfg["strategy"] = strategy
 
     try:
         cfg["reward_risk"] = round(float(cfg["reward_risk"]), 2)

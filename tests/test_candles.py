@@ -169,7 +169,7 @@ class CandlestickCycleTests(unittest.TestCase):
         patcher = mock.patch.object(strategy.brokers, "load_positions", lambda: self.positions)
         patcher.start()
         self.addCleanup(patcher.stop)
-        self.cfg = config.validate({"symbols": ["HAM"], "short_window": 20, "long_window": 21,
+        self.cfg = config.validate({"symbols": ["HAM"], "level_window": 20, "trend_window": 21,
                                     "lookback_days": 40})
         self.market_closed = mock.patch.object(strategy, "market_is_open", return_value=False)
         self.market_closed.start()
@@ -187,7 +187,7 @@ class CandlestickCycleTests(unittest.TestCase):
         rows, execute = self.run_with(buy_day, {"status": "filled", "trade": {}})
         self.assertEqual(rows["HAM"]["signal"], "BUY")
         self.assertEqual(execute.call_args.args[1:3], ("BUY", "HAM"))
-        self.assertEqual(execute.call_args.kwargs["note"], "bullish three-bar reversal at support")
+        self.assertEqual(execute.call_args.kwargs["pattern"], "bullish three-bar reversal at support")
 
         # Same bar again: not traded twice.
         _, execute = self.run_with(buy_day, {"status": "filled", "trade": {}})
@@ -210,7 +210,7 @@ class CandlestickCycleTests(unittest.TestCase):
             data.index = list(data.index[:-1]) + [datetime.date(2026, 10, 26)]
             rows, execute = self.run_with(data, {"status": "filled", "trade": {}})
         execute.assert_not_called()
-        self.assertEqual(rows["HAM"]["last_crossover"]["result"], "skipped")
+        self.assertEqual(rows["HAM"]["last_signal"]["result"], "skipped")
 
 
 if __name__ == "__main__":

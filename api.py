@@ -67,7 +67,7 @@ def health():
 
 @app.route("/status")
 def status():
-    """Latest moving-average snapshot written by the strategy loop."""
+    """Latest per-symbol snapshot (levels, signal, stop/target) from the strategy loop."""
     return jsonify(_read_state("status.json", {}))
 
 

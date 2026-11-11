@@ -12,7 +12,7 @@ sys.stdout.reconfigure(errors="replace")
 sys.stderr.reconfigure(errors="replace")
 
 cfg = load_config()
-print(f"Config: {', '.join(cfg['symbols'])} | {cfg['short_window']}/{cfg['long_window']} SMA crossover, "
+print(f"Config: {', '.join(cfg['symbols'])} | candlestick patterns, "
       f"${cfg['trade_dollars']:.2f} per trade, {cfg['mode'].upper()} mode")
 
 # Authenticate once, before anything else starts, so the loop thread

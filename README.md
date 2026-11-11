@@ -1,31 +1,13 @@
 # StockJockey
 
-A trading bot that watches a list of stocks (AAPL by default) on daily
-candles. `config.json`'s `strategy` picks the rules:
-
-- **`candlestick`** (default): candlestick patterns at key price levels. See
-  [Candlestick strategy](#candlestick-strategy).
-- **`sma_crossover`**: the original 20/50-day moving average crossover,
-  described next.
-
-### SMA crossover
-
-When a stock's 20-day simple moving average crosses its 50-day between two
-consecutive days it places an order for that stock:
-
-| Crossover | Meaning | Order |
-|---|---|---|
-| 20-day goes from at/below to **above** the 50-day | golden cross | BUY `trade_dollars` worth (fractional shares) |
-| 20-day goes from at/above to **below** the 50-day | death cross | SELL the shares the bot bought |
+A candlestick pattern trading bot. It watches a list of stocks on daily
+candles and trades the patterns from Data Trader's video, only where they
+form at a key price level.
 
 Price history (the last `lookback_days` daily bars) comes from **yfinance**.
 Orders go to **paper** (simulated) or **Robinhood** (live), and the
-**trader panel** shows a **TradingView** chart with both moving averages.
-
-Crossovers are rare: on AAPL there were 7 golden crosses in the two years to
-November 2026, and none between the 2026-09-15 cross and this writing. The
-bot also only acts on a crossover the day after it forms, so if it isn't
-running that day the signal is missed.
+**trader panel** shows each symbol's levels, signal and stop/target next to a
+**TradingView** chart.
 
 ### Candlestick strategy
 
@@ -45,8 +27,8 @@ the size of the stop. The rules live in `candles.py`.
 
 **When it buys** (when not already holding):
 - A **reversal** pattern (1, 2, 4, 6) where one of the last 3 candles reached
-  **support** (the lowest low of the last `short_window` days) or dipped to the
-  rising **`long_window`-day average** (a moving "dynamic" key level).
+  **support** (the lowest low of the last `level_window` days) or dipped to the
+  rising **`trend_window`-day average** (a moving "dynamic" key level).
 - A **continuation** pattern (3, 5) while price is above that average.
 
 Entry is the pattern's closing price. The target is entry + `reward_risk` ×
@@ -54,15 +36,16 @@ Entry is the pattern's closing price. The target is entry + `reward_risk` ×
 
 **When it sells**: the live price, or a later day's high/low, reaches the
 stop or the target; or a bearish reversal pattern forms at **resistance**
-(the highest high of the last `short_window` days); or a bearish breakout
+(the highest high of the last `level_window` days); or a bearish breakout
 candle forms. "At a level" means within one average candle range of it.
 Stops and targets are saved in `state/trade_plans.json`. Patterns are read
 from completed daily bars only, and each signal is acted on once.
 
 On two years of AAPL daily bars (Nov 2024 to Nov 2026) the rules made 25 round
 trips, 12 winners, about +17% summed across trades, while simply holding
-AAPL gained about 52%. It trades far more often than the crossover, but
-that's not evidence it will be profitable; try it in paper mode first.
+AAPL gained about 52%. Across all 10 default tickers it won 38% of 169
+trades for about +0.3% per trade, with nearly all of the profit in early
+2025, so it has not shown a reliable edge; try it in paper mode first.
 `candles.backtest(bars)` replays the rules on any OHLC DataFrame.
 
 ## Setup
@@ -83,10 +66,9 @@ copy the template yourself (`cp config.example.json config.json`).
 
 ```json
 {
-  "strategy": "candlestick",
   "symbols": ["AAPL"],
-  "short_window": 20,
-  "long_window": 50,
+  "level_window": 20,
+  "trend_window": 50,
   "trade_dollars": 100.0,
   "lookback_days": 100,
   "reward_risk": 2.0,
@@ -96,12 +78,11 @@ copy the template yourself (`cp config.example.json config.json`).
 }
 ```
 
-- `strategy`: `"candlestick"` or `"sma_crossover"`.
-- `short_window` / `long_window`: the two moving averages for the crossover.
-  For the candlestick strategy, `short_window` is how many days back
-  support, resistance and the "average candle" look, and `long_window` is the
-  trend average.
-- `reward_risk`: candlestick profit target as a multiple of the risk to the
+- `level_window`: how many days back support, resistance and the "average
+  candle" look.
+- `trend_window`: the days in the trend average the patterns use as an
+  uptrend check and a dynamic key level.
+- `reward_risk`: profit target as a multiple of the risk to the
   stop (2.0 = aim for twice what you risk).
 - `symbols`: every stock the bot watches (up to 25). Each one gets the same
   rules and is tracked separately, so the bot can hold several at
@@ -155,7 +136,7 @@ local API (`python api.py`), not the droplet.
 The loop checks every `check_interval_minutes` while the market is open and
 idles when it's closed. It acts only on **completed** daily bars. Today's
 still-moving bar is ignored until the close, so a half-finished day can't
-trigger a trade that reverses by 4 PM. Each crossover is acted on once.
+trigger a trade that reverses by 4 PM. Each signal is acted on once.
 
 The bot sells only shares it bought itself (tracked in `state/positions.json`).
 Other AAPL shares you hold in Robinhood are never touched.
@@ -166,11 +147,9 @@ TradingView doesn't let outside programs place orders in its own Paper
 Trading account, and Robinhood has no paper-trading API. So paper trading is
 simulated by this bot, and TradingView is used two ways:
 
-1. **Chart:** the panel embeds TradingView's chart with the same two SMAs.
-2. **Alerts (optional):** `tradingview/sma_crossover.pine` is the same
-   strategy in Pine Script. Add it to a daily chart to see and backtest the
-   crossovers in TradingView's Strategy Tester. To have TradingView trigger
-   trades, create an alert on the strategy with:
+1. **Chart:** the panel embeds TradingView's daily candle chart.
+2. **Alerts (optional):** any TradingView strategy alert can place trades
+   through the bot. Create the alert with:
    - **Webhook URL:** `https://159-223-160-191.sslip.io/api/webhook/tradingview`
      (needs a paid TradingView plan; this route skips the panel login and
      checks the secret instead)
@@ -188,7 +167,7 @@ simulated by this bot, and TradingView is used two ways:
 All endpoints except `/health` and `/webhook/tradingview` need the
 `X-API-Key` header.
 
-`GET /health` · `GET /status` (latest MA snapshot) · `GET|POST /config` ·
+`GET /health` · `GET /status` (latest per-symbol levels and signals) · `GET|POST /config` ·
 `GET /positions` · `GET /balance` · `GET /robinhood-balance` · `GET /trades` ·
 `GET /pnl?period=1d|1w|1m|1y|ytd|all` · `POST /webhook/tradingview`
 
